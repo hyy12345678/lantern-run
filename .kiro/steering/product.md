@@ -11,7 +11,8 @@ candy, and reach the church door.
   outside the spec without updating the spec first.
 - Pure front-end. No login, no backend, no network calls at runtime.
 - Must work on desktop (keyboard) and mobile (touch joystick and a blow button).
-- Three nights. Each night is one playable level with a clear goal.
+- Roguelike run: four rooms (three trial rooms, then the Pumpkin King). Flame resets each room.
+  Losing the flame ends the run. Upgrades are chosen between trial rooms.
 - Feature freeze date: 2026-11-30. After that, only bug fixes and content polish.
 
 ## Audience and judging
@@ -29,7 +30,7 @@ candy, and reach the church door.
   Internal planning docs (PLAN.md, steering, specs) may be in Chinese.
 
 ## Game feel
-- Failure is fast and clear: the flame goes out and the night restarts.
-- Difficulty rises by night, not by hidden tuning. A player should be able to read
-  the danger from the screen.
+- Failure is fast and clear: the flame goes out and the run ends on a summary screen.
+- Difficulty rises by room, and upgrades let the player shape the run. A player should be
+  able to read the danger from the screen.
 - Every input gets immediate visual or audio feedback.

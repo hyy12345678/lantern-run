@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run tests after a spec task",
+      "trigger": "PostTaskExec",
+      "description": "Run the Vitest suite after each spec task is completed, to catch regressions in the core logic.",
+      "action": {
+        "type": "command",
+        "command": "npm run test --silent",
+        "timeout": 300
+      }
+    }
+  ]
+}
