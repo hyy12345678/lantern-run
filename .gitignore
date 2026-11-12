@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Note: .kiro/ must stay committed. Kiroween rules disqualify submissions that gitignore it.
