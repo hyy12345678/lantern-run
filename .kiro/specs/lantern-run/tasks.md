@@ -79,12 +79,12 @@ repo. Items marked "superseded" were built for the three-night version and are r
 - [x] 22. Audio (synthesized in code, no audio files)
   - Candy, blow, ghost contact, boss contact, upgrade pick, room clear, run end.
   - Covers: R13.6, R12.3.
-- [ ] 23. Responsive check (partial: the 360 px phone screenshot is cropped, see open issues)
+- [x] 23. Responsive check (500 px phone-width view shows the whole menu, letterboxed. Text is small on phones; a larger HUD for small screens is a later polish item)
   - Canvas scaling from 360 px to 1920 px, HUD not cropped, sub-path build.
   - Covers: R13.1, R13.2.
 - [x] 24. Kiro hooks
   - `PostFileSave` on `.ts` runs typecheck. `PostTaskExec` runs tests. Files in `.kiro/hooks/`.
-- [ ] 25. Deploy and README
+- [x] 25. Deploy and README (live at https://hyy12345678.github.io/lantern-run/ from the gh-pages branch, built by hand. Automatic deploy needs the `workflow` token scope: run `gh auth refresh -h github.com -s workflow`, then commit `.github/workflows/deploy.yml`)
   - GitHub Pages build, live link in README, Kiro usage section.
 
 ## Schedule
