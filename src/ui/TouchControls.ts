@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import type { RunInput } from '../core/run';
 import type { Vec2 } from '../core/types';
 import { FONT, PAL } from './palette';
 
@@ -7,6 +6,16 @@ const JOY_RADIUS = 60;
 const KNOB_RADIUS = 26;
 const BLOW_RADIUS = 46;
 const EDGE_MARGIN = 110;
+const PAUSE_RADIUS = 24;
+/** Pause button sits above the pause overlay, so it stays tappable while paused. */
+const PAUSE_DEPTH = 70;
+
+/** One frame of touch input. `pause` and `blow` are true only on the frame they were tapped. */
+export interface TouchFrame {
+  move: Vec2;
+  blow: boolean;
+  pause: boolean;
+}
 
 /** True on touch devices, or when the URL has `?touch` (for testing on a desktop). */
 export function isTouchDevice(): boolean {
@@ -24,6 +33,8 @@ export class TouchControls {
   private joyPointer: number | null = null;
   private move: Vec2 = { x: 0, y: 0 };
   private blowPressed = false;
+  private pausePressed = false;
+  private readonly pauseCenter: Vec2;
 
   constructor(scene: Phaser.Scene) {
     const { width, height } = scene.scale;
@@ -52,6 +63,17 @@ export class TouchControls {
       .setOrigin(0.5)
       .setDepth(41);
 
+    this.pauseCenter = { x: width / 2, y: height - 30 };
+    scene.add
+      .circle(this.pauseCenter.x, this.pauseCenter.y, PAUSE_RADIUS, PAL.ink, 0.6)
+      .setStrokeStyle(3, PAL.pumpkin, 0.9)
+      .setDepth(PAUSE_DEPTH);
+    // Two bars, the usual pause icon.
+    const pauseIcon = scene.add.graphics().setDepth(PAUSE_DEPTH);
+    pauseIcon.fillStyle(0xf5f0ff, 1);
+    pauseIcon.fillRect(this.pauseCenter.x - 7, this.pauseCenter.y - 8, 5, 16);
+    pauseIcon.fillRect(this.pauseCenter.x + 2, this.pauseCenter.y - 8, 5, 16);
+
     scene.input.on('pointerdown', this.onDown, this);
     scene.input.on('pointermove', this.onMove, this);
     scene.input.on('pointerup', this.onUp, this);
@@ -62,14 +84,19 @@ export class TouchControls {
     });
   }
 
-  /** Returns the current movement and clears the pending blow tap. */
-  read(): Pick<RunInput, 'move' | 'blow'> {
-    const blow = this.blowPressed;
+  /** Returns the current movement and clears the pending taps (blow and pause). Call once per frame. */
+  read(): TouchFrame {
+    const frame: TouchFrame = { move: this.move, blow: this.blowPressed, pause: this.pausePressed };
     this.blowPressed = false;
-    return { move: this.move, blow };
+    this.pausePressed = false;
+    return frame;
   }
 
   private onDown(pointer: Phaser.Input.Pointer): void {
+    if (distance(pointer, this.pauseCenter) <= PAUSE_RADIUS) {
+      this.pausePressed = true;
+      return;
+    }
     if (distance(pointer, this.blowCenter) <= BLOW_RADIUS) {
       this.blowPressed = true;
       return;

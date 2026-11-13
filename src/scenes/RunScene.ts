@@ -15,6 +15,7 @@ import { buildStaticLayer, buildVignette } from '../ui/map';
 import { FONT, PAL } from '../ui/palette';
 import { addSoundToggle } from '../ui/SoundToggle';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
+import type { TouchFrame } from '../ui/TouchControls';
 import { UpgradeOverlay } from '../ui/UpgradeOverlay';
 import type { ResultData } from './ResultScene';
 
@@ -68,6 +69,7 @@ export class RunScene extends Phaser.Scene {
   private paused = false;
   private pauseLayer!: Phaser.GameObjects.Container;
   private touch: TouchControls | null = null;
+  private touchFrame: TouchFrame | undefined;
   private moveKeys!: MoveKeys;
   private blowKey!: Key;
   private pickKeys!: Key[];
@@ -120,6 +122,10 @@ export class RunScene extends Phaser.Scene {
       // Dev aid: open the upgrade cards straight away.
       this.upgradeOverlay.show(UPGRADE_IDS.slice(0, 3), (id) => this.pickUpgrade(id));
     }
+    if (params.has('pause')) {
+      // Dev aid: start paused, to check the pause screen.
+      this.setPaused(true);
+    }
 
     this.messagePanel = this.add.graphics().setDepth(20);
     this.messageText = this.add
@@ -150,7 +156,11 @@ export class RunScene extends Phaser.Scene {
   }
 
   update(time: number, deltaMs: number): void {
-    if (this.pauseKeys.some((key) => Phaser.Input.Keyboard.JustDown(key))) this.setPaused(!this.paused);
+    // Read touch input once per frame. Both the keyboard and the touch pause button toggle pause.
+    this.touchFrame = this.touch?.read();
+    if (this.pauseKeys.some((key) => Phaser.Input.Keyboard.JustDown(key)) || this.touchFrame?.pause) {
+      this.setPaused(!this.paused);
+    }
 
     if (this.paused) {
       if (Phaser.Input.Keyboard.JustDown(this.quitKey)) this.scene.start('MenuScene');
@@ -187,7 +197,7 @@ export class RunScene extends Phaser.Scene {
       x: axis(this.moveKeys.left, this.moveKeys.right),
       y: axis(this.moveKeys.up, this.moveKeys.down),
     };
-    const touch = this.touch?.read();
+    const touch = this.touchFrame;
     const touchMoving = touch !== undefined && (touch.move.x !== 0 || touch.move.y !== 0);
     return {
       move: touchMoving ? touch.move : keyboardMove,
@@ -297,7 +307,34 @@ export class RunScene extends Phaser.Scene {
         strokeThickness: 5,
       })
       .setOrigin(0.5);
-    this.pauseLayer = this.add.container(0, 0, [dim, title, hint]).setDepth(60).setVisible(false);
+    // Keyboard hint on keyboard devices. Tappable buttons on touch devices.
+    const touchDevice = isTouchDevice();
+    hint.setVisible(!touchDevice);
+    const tapStyle: Phaser.Types.GameObjects.Text.TextStyle = {
+      fontFamily: FONT,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: PAL.textHex,
+      stroke: '#1b0f24',
+      strokeThickness: 5,
+    };
+    const tapResume = this.add
+      .text(WIDTH / 2, HEIGHT / 2 + 36, 'Tap to resume', tapStyle)
+      .setOrigin(0.5)
+      .setVisible(touchDevice)
+      .setInteractive({ useHandCursor: true });
+    tapResume.on('pointerdown', () => this.setPaused(false));
+    const tapQuit = this.add
+      .text(WIDTH / 2, HEIGHT / 2 + 80, 'Tap here to quit to menu', { ...tapStyle, color: PAL.accentText })
+      .setOrigin(0.5)
+      .setVisible(touchDevice)
+      .setInteractive({ useHandCursor: true });
+    tapQuit.on('pointerdown', () => this.scene.start('MenuScene'));
+
+    this.pauseLayer = this.add
+      .container(0, 0, [dim, title, hint, tapResume, tapQuit])
+      .setDepth(60)
+      .setVisible(false);
   }
 
   private showMessage(text: string, time: number, seconds: number): void {
