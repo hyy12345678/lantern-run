@@ -21,6 +21,11 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
+  // Phaser tracks one touch point by default, so a second finger (e.g. a BLOW tap while the
+  // joystick is held) was ignored. Three points cover a thumb on the joystick, a thumb on BLOW, and spare.
+  input: {
+    activePointers: 3,
+  },
   scene: order,
 };
 
