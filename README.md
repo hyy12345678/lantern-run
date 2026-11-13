@@ -52,7 +52,23 @@ The project was built in Kiro with a spec-driven workflow:
 - **Hooks:** `.kiro/hooks/` runs the TypeScript check on every `.ts` save, and runs the test suite after each spec task.
 - **Property-based tests:** `tests/` uses fast-check to check rules such as flame bounds, deterministic level generation, ghost movement, and blow behavior. They run after each change to the core logic.
 
-_Add your own notes here before submission: which Kiro features were tried, what worked, and what did not._
+### What worked and what didn't
+
+I mainly used Kiro's Specs, Steering, and Hooks throughout development.
+
+**What worked well:**
+
+- **Specs** helped me break the game into manageable tasks and keep track of progress.
+- **Steering** kept the code structure and visual style consistent, especially when adding new features.
+- **Hooks** automated TypeScript checks and tests, reducing repetitive manual work.
+- **Property-based tests** helped verify core game rules and deterministic behavior.
+
+**What could be improved:**
+
+- When the game changed from a three-night structure to a roguelike, I had to rewrite parts of the spec and reorganize the task list. Keeping everything in sync took extra effort.
+- Automated tests were useful for game logic, but they couldn't tell whether the gameplay was actually fun or well-balanced. That still required manual playtesting.
+
+**Overall**, Kiro was most useful for keeping development organized and catching issues early. It didn't eliminate the need for manual testing or design decisions, but it made the development process more structured and easier to manage.
 
 ## License
 
