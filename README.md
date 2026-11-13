@@ -7,6 +7,8 @@ A Halloween roguelike for [Kiroween 2026](https://kiroween.devpost.com/). You ar
 - Live build: https://hyy12345678.github.io/lantern-run/
 - Works in the browser with no login and no network calls at runtime.
 
+![Lantern Run title screen](screenshots/home.png)
+
 ## Run locally
 
 Requires Node.js 20 or newer.
