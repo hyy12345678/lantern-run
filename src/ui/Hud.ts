@@ -36,8 +36,10 @@ export class Hud {
   private readonly width: number;
   private readonly lastTexts = new Map<Phaser.GameObjects.Text, string>();
   private readonly lastColors = new Map<Phaser.GameObjects.Text, string>();
+  /** Where collected candy flies to. */
+  readonly candyTarget = { x: CANDY_ICON_X, y: MID };
 
-  constructor(scene: Phaser.Scene) {
+  constructor(private readonly scene: Phaser.Scene) {
     this.width = scene.scale.width;
     this.icons = scene.add.graphics().setDepth(10);
     const style: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -110,6 +112,13 @@ export class Hud {
       g.strokePath();
     }
     this.set(this.blowText, state.blowCooldown > 0 ? `BLOW ${state.blowCooldown.toFixed(1)}s` : 'BLOW READY');
+  }
+
+  /** Pops the candy counter when a flying candy lands on it. */
+  bumpCandy(): void {
+    this.scene.tweens.killTweensOf(this.candyText);
+    this.candyText.setScale(1.35);
+    this.scene.tweens.add({ targets: this.candyText, scale: 1, duration: 220, ease: 'Back.easeOut' });
   }
 
   private set(target: Phaser.GameObjects.Text, value: string, color?: string): void {

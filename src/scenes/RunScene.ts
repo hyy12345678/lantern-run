@@ -18,7 +18,7 @@ import { generateRoom } from '../core/room';
 import { chooseUpgrade, createRun, stepRun } from '../core/run';
 import type { RoomIndex, RunEvent, RunInput, RunState } from '../core/run';
 import { THEME_NAMES } from '../core/themes';
-import type { BossPhase, ThemeId } from '../core/types';
+import type { BossPhase, GhostKind, ThemeId, Vec2 } from '../core/types';
 import { UPGRADE_IDS } from '../core/upgrades';
 import type { UpgradeId } from '../core/upgrades';
 import { playSound } from '../audio/sfx';
@@ -33,27 +33,30 @@ import {
   drawGhost,
   drawPumpkin,
   drawPumpkinKing,
+  tileHash,
 } from '../ui/drawing';
-import { burst, edgePulse, floatText, ring, transition } from '../ui/fx';
+import { burst, edgePulse, floatText, irisOpen, irisTransition, ring } from '../ui/fx';
 import { Hud } from '../ui/Hud';
-import { Lantern } from '../ui/Lantern';
-import type { Glow } from '../ui/Lantern';
+import { DARKNESS_ALPHA, Lantern, lightRadius } from '../ui/Lantern';
+import type { LightSource } from '../ui/Lantern';
 import { buildStaticLayer, buildVignette } from '../ui/map';
+import type { ThemeLight } from '../ui/map';
 import { FONT, PAL, TITLE_FONT } from '../ui/palette';
 import { animTime, isReducedMotion } from '../ui/settings';
 import { addSettingsToggles } from '../ui/SoundToggle';
+import { ensureFxTextures, TEX } from '../ui/textures';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import type { TouchFrame } from '../ui/TouchControls';
 import { UpgradeOverlay } from '../ui/UpgradeOverlay';
 import type { ResultData } from './ResultScene';
 
 type Key = Phaser.Input.Keyboard.Key;
+type Emitter = Phaser.GameObjects.Particles.ParticleEmitter;
 
 const WIDTH = MAP_COLS * TILE_SIZE;
 const HEIGHT = MAP_ROWS * TILE_SIZE;
 const MAX_FRAME_SECONDS = 0.05;
 const MESSAGE_SECONDS = 2.2;
-const ENDING_DELAY_MS = 1400;
 const PLAYER_DRAW_RADIUS = 15;
 const GHOST_DRAW_RADIUS = 14;
 const BOSS_DRAW_RADIUS = 24;
@@ -62,19 +65,35 @@ const HURT_FLASH_MS = 300;
 const BLINK_WARN_SEC = 0.6;
 const LOW_FLAME_PULSE_MS = 1100;
 const FIREFLY_COUNT = 12;
-/** Bob of the pumpkin while it moves, in px. */
 const BOB_PX = 3;
+/** Light rays per frame (R15.10). Fewer on touch devices to save power. */
+const RAYS_DESKTOP = 288;
+const RAYS_TOUCH = 180;
+/** Length of the flame-out and win moments before the screen fades (R15.3). */
+const ENDING_MS = 1500;
+const ENDING_FADE_MS = 450;
+const BOSS_INTRO_MS = 2200;
+const LETTERBOX_PX = 62;
+const EMBER_EVERY_MS = 55;
+const EMBER_IDLE_EVERY_MS = 200;
+const WISP_EVERY_MS = 90;
+const SMOKE_EVERY_MS = 80;
 
 // Layer order. The darkness covers the world; glows, warnings, and labels sit above it.
 const DEPTH = {
   fog: 2,
   entities: 4,
+  leaves: 5,
   darkness: 6,
   vignette: 7,
+  halos: 7.5,
   fireflies: 8,
+  particles: 8.5,
   warnings: 9,
   doorLabel: 12,
+  flying: 15,
   message: 20,
+  letterbox: 27,
 };
 
 const FIREFLY_COLORS: Record<ThemeId, number> = {
@@ -84,6 +103,12 @@ const FIREFLY_COLORS: Record<ThemeId, number> = {
   crypt: 0xff9a6b,
 };
 
+const GHOST_COLORS: Record<GhostKind, number> = {
+  patrol: PAL.ghostPatrol,
+  chase: PAL.ghostChase,
+  blink: PAL.ghostBlink,
+};
+
 interface MoveKeys {
   left: Key[];
   right: Key[];
@@ -91,13 +116,35 @@ interface MoveKeys {
   down: Key[];
 }
 
+interface Ending {
+  kind: 'won' | 'lost';
+  start: number;
+}
+
+/** Candy colour from its tile, so a candy keeps its colour when others are picked up. */
+function candyColorIndex(candy: Vec2): number {
+  const col = Math.floor(candy.x / TILE_SIZE);
+  const row = Math.floor(candy.y / TILE_SIZE);
+  return Math.floor(tileHash(col, row, 9) * PAL.candyColors.length);
+}
+
 /**
  * Dev aids for screenshots and testing:
  * `?seed=N&room=R` starts directly in room R of seed N.
  * `&bossPhase=windup` puts the Pumpkin King mid wind-up. `&freeze=1` stops the room from advancing.
- * Without these parameters the run starts normally from room 1 with a random seed.
+ * `&nobanner=1` skips the opening iris, the room banner, and the boss intro.
  */
 function startState(seed: number, room: number | null, params: URLSearchParams): RunState {
+  const state = roomState(seed, room, params);
+  // Dev aid: `&flame=N` sets the starting flame, e.g. 1 to see the flame go out.
+  const flame = Number(params.get('flame'));
+  const withFlame = params.has('flame') && Number.isFinite(flame) ? { ...state, flame } : state;
+  // Dev aid: `&atDoor=1` starts at the door with the candy goal met, to test room changes.
+  if (!params.has('atDoor')) return withFlame;
+  return { ...withFlame, player: withFlame.layout.door, candiesInRoom: withFlame.layout.candyGoal };
+}
+
+function roomState(seed: number, room: number | null, params: URLSearchParams): RunState {
   if (room === null || room < 1 || room > ROOM_COUNT) return createRun(seed);
   const roomIndex = room as RoomIndex;
   const layout = generateRoom(roomIndex, seed);
@@ -112,20 +159,21 @@ function startState(seed: number, room: number | null, params: URLSearchParams):
 
 function roomBannerText(state: RunState): [string, string] {
   const { roomIndex, layout } = state;
-  if (layout.boss) {
-    return ['The Crypt', `The Pumpkin King awaits. Collect ${layout.candyGoal} candy and escape.`];
-  }
   const goal = `Collect ${layout.candyGoal} candy, then reach the door`;
   return [THEME_NAMES[layout.theme], `Room ${roomIndex} of ${ROOM_COUNT}  ·  ${goal}`];
 }
 
 /**
  * Plays a run one room at a time. Handles the lantern light, the upgrade choice, room transitions,
- * pause, touch controls, sound, feedback effects, and the end of the run.
+ * the boss intro, the end-of-run moments, pause, touch controls, sound, and feedback effects.
  */
 export class RunScene extends Phaser.Scene {
   private state!: RunState;
+  /** What is on screen. Lags behind `state` while the iris closes on the old room. */
+  private shown!: RunState;
+  private holdShown = false;
   private mapLayer!: Phaser.GameObjects.RenderTexture;
+  private themeLights: ThemeLight[] = [];
   private mapRoomIndex = 0;
   private fogLayer!: Phaser.GameObjects.Graphics;
   private entities!: Phaser.GameObjects.Graphics;
@@ -140,23 +188,40 @@ export class RunScene extends Phaser.Scene {
   private doorLabel!: Phaser.GameObjects.Text;
   private doorLabelText = '';
   private messageUntil = 0;
-  private ending = false;
+  private ending: Ending | null = null;
   private paused = false;
   private frozen = false;
+  private skipIntros = false;
+  /** True while an iris or the boss intro is playing. The room does not advance. */
+  private cinematic = false;
+  private introEndsAt = 0;
+  private letterbox: Phaser.GameObjects.GameObject[] = [];
   private pauseLayer!: Phaser.GameObjects.Container;
   private touch: TouchControls | null = null;
   private touchFrame: TouchFrame | undefined;
+  private rayCount = RAYS_DESKTOP;
   private moveKeys!: MoveKeys;
   private blowKey!: Key;
+  private confirmKey!: Key;
   private pickKeys!: Key[];
   private pauseKeys!: Key[];
   private quitKey!: Key;
+
+  // Particles.
+  private embers!: Emitter;
+  private smoke!: Emitter;
+  private wisps!: Record<GhostKind, Emitter>;
+  private leaves: Emitter | null = null;
+  private nextEmberAt = 0;
+  private nextWispAt = 0;
+  private nextSmokeAt = 0;
 
   // Feedback state the core does not need to know about.
   private moving = false;
   private hurtUntil = 0;
   private doorWasOpen = false;
   private nextLowPulse = 0;
+  private bossGone = false;
   private lastBossPhase: BossPhase | null = null;
   private lastBlinkTimers = new Map<number, number>();
 
@@ -169,16 +234,23 @@ export class RunScene extends Phaser.Scene {
     const seed = data.seed ?? (Number(params.get('seed')) || Math.floor(Math.random() * 0xffffffff));
     const room = params.has('room') ? Number(params.get('room')) : null;
     this.state = startState(seed, room, params);
+    this.shown = this.state;
+    this.holdShown = false;
     this.frozen = params.has('freeze');
+    this.skipIntros = params.has('nobanner');
     this.messageUntil = 0;
-    this.ending = false;
+    this.ending = null;
     this.paused = false;
+    this.cinematic = false;
     this.moving = false;
     this.hurtUntil = 0;
     this.doorWasOpen = false;
     this.nextLowPulse = 0;
+    this.bossGone = false;
     this.lastBossPhase = this.state.layout.boss?.phase ?? null;
     this.lastBlinkTimers = new Map();
+    this.letterbox = [];
+    this.rayCount = isTouchDevice() ? RAYS_TOUCH : RAYS_DESKTOP;
 
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('Keyboard input is required for RunScene');
@@ -189,6 +261,7 @@ export class RunScene extends Phaser.Scene {
       down: [keyboard.addKey('S'), keyboard.addKey('DOWN')],
     };
     this.blowKey = keyboard.addKey('SPACE');
+    this.confirmKey = keyboard.addKey('ENTER');
     this.pickKeys = [
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
@@ -197,19 +270,21 @@ export class RunScene extends Phaser.Scene {
     this.pauseKeys = [keyboard.addKey('ESC'), keyboard.addKey('P')];
     this.quitKey = keyboard.addKey('Q');
 
+    ensureFxTextures(this);
     this.buildMap();
     this.mapRoomIndex = this.state.roomIndex;
     this.fogLayer = this.add.graphics().setDepth(DEPTH.fog);
     this.entities = this.add.graphics().setDepth(DEPTH.entities);
-    this.lantern = new Lantern(this, WIDTH, HEIGHT, DEPTH.darkness);
+    this.lantern = new Lantern(this, WIDTH, HEIGHT, DEPTH.darkness, DEPTH.halos);
     buildVignette(this, WIDTH, HEIGHT).setDepth(DEPTH.vignette);
     this.fireflies = this.add.graphics().setDepth(DEPTH.fireflies);
     this.warnings = this.add.graphics().setDepth(DEPTH.warnings);
+    this.createEmitters();
     this.hud = new Hud(this);
     this.banner = new Banner(this);
     this.upgradeOverlay = new UpgradeOverlay(this);
     this.touch = isTouchDevice() ? new TouchControls(this) : null;
-    addSettingsToggles(this);
+    addSettingsToggles(this, () => this.refreshLeaves());
     this.createPauseLayer();
     this.listenForHidden();
 
@@ -239,9 +314,19 @@ export class RunScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(DEPTH.doorLabel);
 
-    // Dev aid: `&nobanner=1` skips the first room banner, for clean screenshots.
-    if (!params.has('nobanner')) this.banner.show(...roomBannerText(this.state));
+    if (!this.skipIntros) {
+      this.cinematic = true;
+      irisOpen(this, this.state.player, () => this.enterRoom());
+    }
 
+    if (params.has('fps')) {
+      // Dev aid: `?fps=1` shows the frame rate, to check performance on a phone.
+      const fps = this.add
+        .text(WIDTH / 2, 44, '', { fontFamily: FONT, fontSize: '18px', color: PAL.candyText, backgroundColor: '#000000' })
+        .setOrigin(0.5, 0)
+        .setDepth(80);
+      this.time.addEvent({ delay: 500, loop: true, callback: () => fps.setText(`${Math.round(this.game.loop.actualFps)} FPS · ${this.rayCount} rays`) });
+    }
     if (params.has('choose')) {
       // Dev aid: open the upgrade cards straight away. Shows a trade-off card in the middle.
       this.upgradeOverlay.show([UPGRADE_IDS[0], 'hungryFlame', 'lastEmber'], (id) => this.pickUpgrade(id));
@@ -259,14 +344,21 @@ export class RunScene extends Phaser.Scene {
       this.setPaused(!this.paused);
     }
 
+    if (this.introEndsAt > 0) {
+      const skip = Phaser.Input.Keyboard.JustDown(this.confirmKey) || Phaser.Input.Keyboard.JustDown(this.blowKey);
+      if (skip || time >= this.introEndsAt) this.endBossIntro();
+    }
+
     if (this.paused) {
       if (Phaser.Input.Keyboard.JustDown(this.quitKey)) this.scene.start('MenuScene');
-    } else if (this.state.status === 'playing' && !this.frozen) {
+    } else if (this.state.status === 'playing' && !this.frozen && !this.cinematic) {
       const dt = Math.min(deltaMs / 1000, MAX_FRAME_SECONDS);
-      const before = this.state.player;
+      const before = this.state;
       const step = stepRun(this.state, this.readInput(), dt);
       this.state = step.state;
-      this.moving = before.x !== this.state.player.x || before.y !== this.state.player.y;
+      if (!this.holdShown) this.shown = this.state;
+      this.moving = before.player.x !== this.state.player.x || before.player.y !== this.state.player.y;
+      if (this.state.roomIndex === before.roomIndex) this.flyCollectedCandy(before);
       for (const event of step.events) this.onEvent(event, time);
       this.watchForCues(time);
     } else if (this.state.status === 'choosing' && this.upgradeOverlay.isOpen) {
@@ -275,25 +367,158 @@ export class RunScene extends Phaser.Scene {
       });
     }
 
-    if (this.state.roomIndex !== this.mapRoomIndex) {
-      // Mark the room as shown now, so the swap runs once. The new map is built while the screen is dark.
-      this.mapRoomIndex = this.state.roomIndex;
-      this.doorWasOpen = false;
-      this.lastBossPhase = this.state.layout.boss?.phase ?? null;
-      this.lastBlinkTimers = new Map();
-      transition(this, () => {
-        this.buildMap();
-        this.banner.show(...roomBannerText(this.state));
-      });
-    }
+    if (this.state.roomIndex !== this.mapRoomIndex) this.changeRoom();
     if (this.messageUntil > 0 && time > this.messageUntil) this.hideMessage();
+    this.emitParticles(time);
     this.draw(time);
   }
 
+  // ------------------------------------------------------------ rooms and moments
+
   private buildMap(): void {
     this.mapLayer?.destroy();
-    this.mapLayer = buildStaticLayer(this, this.state.layout);
+    const built = buildStaticLayer(this, this.state.layout);
+    this.mapLayer = built.layer;
+    this.themeLights = built.lights;
+    this.refreshLeaves();
   }
+
+  /**
+   * The state has moved to the next room. Keep showing the old room while the iris closes on it,
+   * swap the map while the screen is black, then open on the new room (R15.4).
+   */
+  private changeRoom(): void {
+    this.mapRoomIndex = this.state.roomIndex;
+    const oldPlayer = this.shown.player;
+    this.holdShown = true;
+    this.cinematic = true;
+    irisTransition(
+      this,
+      () => oldPlayer,
+      () => this.state.player,
+      () => {
+        this.holdShown = false;
+        this.shown = this.state;
+        this.doorWasOpen = false;
+        this.bossGone = false;
+        this.lastBossPhase = this.state.layout.boss?.phase ?? null;
+        this.lastBlinkTimers = new Map();
+        this.buildMap();
+      },
+      () => this.enterRoom(),
+    );
+  }
+
+  /** Called once the screen is open on a room: shows its banner, or the boss intro. */
+  private enterRoom(): void {
+    if (this.state.layout.boss && !this.skipIntros) {
+      this.startBossIntro();
+      return;
+    }
+    this.cinematic = false;
+    if (!this.skipIntros) this.banner.show(...roomBannerText(this.state));
+  }
+
+  /** Letterbox bars and the King's name. The room does not advance until it ends (R15.5). */
+  private startBossIntro(): void {
+    this.cinematic = true;
+    this.introEndsAt = this.time.now + BOSS_INTRO_MS;
+    playSound('bossIntro');
+    const reduced = isReducedMotion();
+    const top = this.add.rectangle(WIDTH / 2, LETTERBOX_PX / 2, WIDTH, LETTERBOX_PX, 0x000000, 1).setDepth(DEPTH.letterbox);
+    const bottom = this.add
+      .rectangle(WIDTH / 2, HEIGHT - LETTERBOX_PX / 2, WIDTH, LETTERBOX_PX, 0x000000, 1)
+      .setDepth(DEPTH.letterbox);
+    const name = this.add
+      .text(WIDTH / 2, HEIGHT * 0.3, 'The Pumpkin King', {
+        fontFamily: TITLE_FONT,
+        fontSize: '72px',
+        color: PAL.accentText,
+        stroke: '#1b0f24',
+        strokeThickness: 10,
+      })
+      .setOrigin(0.5)
+      .setDepth(DEPTH.letterbox);
+    const goal = this.add
+      .text(WIDTH / 2, HEIGHT * 0.3 + 56, `Collect ${this.state.layout.candyGoal} candy and escape. Step aside when he winds up.`, {
+        fontFamily: FONT,
+        fontSize: '20px',
+        fontStyle: 'bold',
+        color: PAL.text,
+        stroke: '#1b0f24',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(DEPTH.letterbox);
+    // Bottom left, clear of the settings toggles in the bottom-right corner.
+    const hint = this.add
+      .text(16, HEIGHT - LETTERBOX_PX / 2, isTouchDevice() ? 'Tap to skip' : 'Enter to skip', {
+        fontFamily: FONT,
+        fontSize: '18px',
+        color: PAL.textSoft,
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.letterbox + 1);
+    this.letterbox = [top, bottom, name, goal, hint];
+    if (!reduced) {
+      top.setY(-LETTERBOX_PX / 2);
+      bottom.setY(HEIGHT + LETTERBOX_PX / 2);
+      this.tweens.add({ targets: top, y: LETTERBOX_PX / 2, duration: 300, ease: 'Cubic.easeOut' });
+      this.tweens.add({ targets: bottom, y: HEIGHT - LETTERBOX_PX / 2, duration: 300, ease: 'Cubic.easeOut' });
+      name.setScale(1.25).setAlpha(0);
+      this.tweens.add({ targets: name, scale: 1, alpha: 1, duration: 500, delay: 200, ease: 'Back.easeOut' });
+    }
+    this.input.once('pointerdown', () => this.endBossIntro());
+  }
+
+  private endBossIntro(): void {
+    if (this.introEndsAt === 0) return;
+    this.introEndsAt = 0;
+    const parts = this.letterbox;
+    this.letterbox = [];
+    this.tweens.add({ targets: parts, alpha: 0, duration: 250, onComplete: () => parts.forEach((p) => p.destroy()) });
+    this.cinematic = false;
+  }
+
+  /**
+   * Flame out: the light shrinks to nothing and smoke rises (R15.3).
+   * Win: the room floods with light and the King vanishes. Both then fade to the result screen.
+   */
+  private startEnding(kind: 'won' | 'lost'): void {
+    if (this.ending) return;
+    this.ending = { kind, start: this.time.now };
+    const data: ResultData = {
+      status: kind,
+      roomsCleared: this.state.roomsCleared,
+      runScore: this.state.runScore,
+      upgrades: [...this.state.upgrades],
+    };
+    recordRunScore(data.runScore);
+    if (kind === 'lost') {
+      playSound('flameOut');
+      this.time.delayedCall(ENDING_MS * 0.35, () => this.showMessage('The flame went out', this.time.now, Infinity));
+    } else {
+      playSound('runEnd');
+      const boss = this.state.layout.boss;
+      if (boss) {
+        burst(this, boss.pos.x, boss.pos.y, PAL.pumpkin, 30);
+        ring(this, boss.pos.x, boss.pos.y, PAL.candle, 140);
+      }
+      this.bossGone = true;
+      this.showMessage('The Pumpkin King retreats!', this.time.now, Infinity);
+    }
+    this.time.delayedCall(ENDING_MS, () => {
+      this.cameras.main.fadeOut(ENDING_FADE_MS, 0, 0, 0);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('ResultScene', data));
+    });
+  }
+
+  /** 0 to 1 through the ending moment, or -1 when there is none. */
+  private endingProgress(time: number): number {
+    return this.ending ? Math.min(1, (time - this.ending.start) / ENDING_MS) : -1;
+  }
+
+  // ------------------------------------------------------------ input and events
 
   private readInput(): RunInput {
     const axis = (negative: Key[], positive: Key[]): number =>
@@ -352,7 +577,7 @@ export class RunScene extends Phaser.Scene {
         break;
       case 'roomCleared':
         burst(this, at.x, at.y, PAL.accent, 26);
-        this.showMessage(`Room ${event.room} cleared`, time, MESSAGE_SECONDS);
+        if (event.room !== ROOM_COUNT) this.showMessage(`Room ${event.room} cleared`, time, MESSAGE_SECONDS);
         playSound('roomClear');
         break;
       case 'upgradeOffered':
@@ -360,7 +585,7 @@ export class RunScene extends Phaser.Scene {
         break;
       case 'runLost':
       case 'runWon':
-        this.endRun(event.type === 'runWon' ? 'won' : 'lost');
+        this.startEnding(event.type === 'runWon' ? 'won' : 'lost');
         break;
       default:
         break;
@@ -372,6 +597,29 @@ export class RunScene extends Phaser.Scene {
     this.hurtUntil = time + HURT_FLASH_MS;
     edgePulse(this, PAL.danger, strength);
     floatText(this, at.x, at.y, `-${damage}`, PAL.warnText);
+  }
+
+  /** Each candy picked up this frame flies to the HUD counter, which pops when it lands (R15.7). */
+  private flyCollectedCandy(before: RunState): void {
+    const remaining = new Set(this.state.layout.candies);
+    for (const candy of before.layout.candies) {
+      if (remaining.has(candy)) continue;
+      if (isReducedMotion()) continue;
+      const icon = this.add.image(candy.x, candy.y, TEX.candy(candyColorIndex(candy))).setDepth(DEPTH.flying);
+      const target = this.hud.candyTarget;
+      this.tweens.add({
+        targets: icon,
+        x: target.x,
+        y: target.y,
+        scale: 0.55,
+        duration: 480,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+          icon.destroy();
+          this.hud.bumpCandy();
+        },
+      });
+    }
   }
 
   /** Effects that come from watching state change: the door opening, boss wind-up, blink teleports, low flame. */
@@ -405,25 +653,100 @@ export class RunScene extends Phaser.Scene {
     }
   }
 
-  /** Saves the best score, waits briefly so the player sees the final frame, then opens the result screen. */
-  private endRun(status: 'won' | 'lost'): void {
-    if (this.ending) return;
-    this.ending = true;
-    const data: ResultData = {
-      status,
-      roomsCleared: this.state.roomsCleared,
-      runScore: this.state.runScore,
-      upgrades: [...this.state.upgrades],
+  // ------------------------------------------------------------ particles
+
+  private createEmitters(): void {
+    this.embers = this.add.particles(0, 0, TEX.spark, {
+      emitting: false,
+      lifespan: { min: 500, max: 900 },
+      speedX: { min: -18, max: 18 },
+      speedY: { min: -55, max: -25 },
+      scale: { start: 0.5, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: [PAL.candle, PAL.pumpkin, PAL.ember],
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.embers.setDepth(DEPTH.particles);
+
+    this.smoke = this.add.particles(0, 0, TEX.smoke, {
+      emitting: false,
+      lifespan: 1500,
+      speedX: { min: -10, max: 10 },
+      speedY: { min: -32, max: -16 },
+      scale: { start: 0.5, end: 2.2 },
+      alpha: { start: 0.55, end: 0 },
+      tint: 0xa69fb8,
+    });
+    this.smoke.setDepth(DEPTH.particles);
+
+    const wisp = (color: number): Emitter => {
+      const emitter = this.add.particles(0, 0, TEX.smoke, {
+        emitting: false,
+        lifespan: 650,
+        speedX: { min: -6, max: 6 },
+        speedY: { min: 4, max: 14 },
+        scale: { start: 0.55, end: 0.1 },
+        alpha: { start: 0.35, end: 0 },
+        tint: color,
+        blendMode: Phaser.BlendModes.ADD,
+      });
+      emitter.setDepth(DEPTH.particles);
+      return emitter;
     };
-    recordRunScore(data.runScore);
-    playSound('runEnd');
-    if (status === 'won') this.showMessage('The Pumpkin King retreats!', this.time.now, Infinity);
-    this.time.delayedCall(ENDING_DELAY_MS, () => this.scene.start('ResultScene', data));
+    this.wisps = { patrol: wisp(GHOST_COLORS.patrol), chase: wisp(GHOST_COLORS.chase), blink: wisp(GHOST_COLORS.blink) };
   }
+
+  /** Graveyard leaves fall under the darkness, so they only show inside the light (R15.8). */
+  private refreshLeaves(): void {
+    this.leaves?.destroy();
+    this.leaves = null;
+    if (!this.state || this.state.layout.theme !== 'graveyard' || isReducedMotion()) return;
+    this.leaves = this.add.particles(0, -10, TEX.leaf, {
+      x: { min: 0, max: WIDTH },
+      lifespan: 22000,
+      speedY: { min: 16, max: 28 },
+      speedX: { min: -14, max: 14 },
+      rotate: { min: 0, max: 360 },
+      scale: { min: 0.8, max: 1.3 },
+      tint: [0xa2683a, 0xc0562b, 0x8c8a3a],
+      frequency: 450,
+      advance: 18000,
+    });
+    this.leaves.setDepth(DEPTH.leaves);
+  }
+
+  private emitParticles(time: number): void {
+    if (isReducedMotion() || this.paused) return;
+    const { player, layout } = this.shown;
+    const progress = this.endingProgress(time);
+
+    if (this.ending?.kind === 'lost') {
+      if (time >= this.nextSmokeAt && progress < 0.95) {
+        this.smoke.emitParticleAt(player.x, player.y - 12, 1);
+        this.nextSmokeAt = time + SMOKE_EVERY_MS;
+      }
+      return;
+    }
+
+    if (time >= this.nextEmberAt && this.state.flame > 0) {
+      this.embers.emitParticleAt(player.x + (Math.random() - 0.5) * 8, player.y - 12, 1);
+      this.nextEmberAt = time + (this.moving ? EMBER_EVERY_MS : EMBER_IDLE_EVERY_MS);
+    }
+
+    if (time >= this.nextWispAt) {
+      for (const ghost of layout.ghosts) {
+        if (ghost.kind === 'blink' && ghost.blinkTimer < BLINK_WARN_SEC) continue;
+        this.wisps[ghost.kind].emitParticleAt(ghost.pos.x, ghost.pos.y + GHOST_DRAW_RADIUS * 0.8, 1);
+      }
+      this.nextWispAt = time + WISP_EVERY_MS;
+    }
+  }
+
+  // ------------------------------------------------------------ pause
 
   private setPaused(value: boolean): void {
     // Pausing only makes sense during a room. The upgrade choice and the end of the run ignore it.
-    if (value && this.state.status !== 'playing') return;
+    if (value && (this.state.status !== 'playing' || this.ending)) return;
     this.paused = value;
     this.pauseLayer.setVisible(value);
   }
@@ -493,6 +816,8 @@ export class RunScene extends Phaser.Scene {
       .setVisible(false);
   }
 
+  // ------------------------------------------------------------ messages
+
   private showMessage(text: string, time: number, seconds: number): void {
     this.messageText.setText(text).setVisible(true);
     this.messageUntil = seconds === Infinity ? Number.MAX_SAFE_INTEGER : time + seconds * 1000;
@@ -516,74 +841,130 @@ export class RunScene extends Phaser.Scene {
     this.messageUntil = 0;
   }
 
+  // ------------------------------------------------------------ drawing
+
   private draw(time: number): void {
     const t = animTime(time);
-    const { layout, player, flame } = this.state;
+    const view = this.shown;
+    const { layout, player, flame } = view;
     const g = this.entities;
     g.clear();
     this.warnings.clear();
-    const glows: Glow[] = [];
+    const sources: LightSource[] = [];
+    const progress = this.endingProgress(time);
+    const lost = this.ending?.kind === 'lost';
+    const won = this.ending?.kind === 'won';
+    // On a loss every light dims with the lantern.
+    const dim = lost ? 1 - progress : 1;
+
+    // Theme lights, with a gentle flicker of their own.
+    this.themeLights.forEach((light, i) => {
+      const flicker = 1 + Math.sin(t * 0.007 + i * 1.9) * 0.06;
+      sources.push({
+        pos: light.pos,
+        radius: light.radius * flicker,
+        strength: light.strength * dim,
+        halo: { radius: light.radius * 0.8 * flicker, color: light.color, alpha: light.haloAlpha * dim },
+      });
+    });
 
     // Door.
-    const needed = Math.max(0, layout.candyGoal - this.state.candiesInRoom);
+    const needed = Math.max(0, layout.candyGoal - view.candiesInRoom);
     const doorOpen = needed === 0;
     const doorX = layout.doorTile.col * TILE_SIZE;
     const doorY = layout.doorTile.row * TILE_SIZE;
     drawDoor(g, doorX, doorY, TILE_SIZE, t, doorOpen);
-    glows.push({ pos: layout.door, radius: doorOpen ? 80 : 42, strength: doorOpen ? 0.95 : 0.55 });
+    sources.push({
+      pos: layout.door,
+      radius: doorOpen ? 80 : 42,
+      strength: (doorOpen ? 0.95 : 0.55) * dim,
+      halo: doorOpen ? { radius: 70, color: PAL.candle, alpha: 0.55 * dim } : undefined,
+    });
     this.setDoorLabel(
       doorOpen ? 'DOOR OPEN' : `NEED ${needed} MORE CANDY`,
       doorOpen ? PAL.candyText : PAL.text,
       doorX + TILE_SIZE / 2,
       doorY - 4,
     );
+    this.doorLabel.setVisible(!this.ending);
 
     // Candy.
-    layout.candies.forEach((candy, i) => {
-      drawCandy(g, candy.x, candy.y, PAL.candyColors[i % PAL.candyColors.length], t, i * 1.7);
-      glows.push({ pos: candy, radius: 28, strength: 0.5 });
-    });
+    for (const candy of layout.candies) {
+      const color = PAL.candyColors[candyColorIndex(candy)];
+      drawCandy(g, candy.x, candy.y, color, t, candy.x * 0.05);
+      sources.push({ pos: candy, radius: 28, strength: 0.5 * dim, halo: { radius: 26, color, alpha: 0.45 * dim } });
+    }
 
     // Ghosts, with cues for what they are about to do.
     for (const ghost of layout.ghosts) {
       const fade =
         ghost.kind === 'blink' && ghost.blinkTimer < BLINK_WARN_SEC ? 1 - ghost.blinkTimer / BLINK_WARN_SEC : 0;
       drawGhost(g, ghost.pos.x, ghost.pos.y, GHOST_DRAW_RADIUS, ghost.kind, t, ghost.id * 2.1, {
-        chasing: isChasing(ghost, player),
+        chasing: !this.ending && isChasing(ghost, player),
         fade,
       });
-      glows.push({ pos: ghost.pos, radius: 46, strength: 0.6 * (1 - fade) });
+      const glow = (1 - fade) * dim;
+      sources.push({
+        pos: ghost.pos,
+        radius: 46,
+        strength: 0.6 * glow,
+        halo: { radius: 38, color: GHOST_COLORS[ghost.kind], alpha: 0.4 * glow },
+      });
     }
 
     // The Pumpkin King, and the warning line before a dash.
     const boss = layout.boss;
-    if (boss) {
+    if (boss && !this.bossGone) {
       drawPumpkinKing(g, boss.pos.x, boss.pos.y, BOSS_DRAW_RADIUS, time, boss.phase, boss.dashDir);
-      glows.push({ pos: boss.pos, radius: 96, strength: 0.85 });
-      if (boss.phase === 'windup') {
+      const intro = this.introEndsAt > 0;
+      const windup = boss.phase === 'windup';
+      sources.push({
+        pos: boss.pos,
+        radius: intro ? 140 : 96,
+        strength: 0.9 * dim,
+        // Wide but faint during the intro, so the light frames the King without washing out his face.
+        halo: {
+          radius: intro ? 150 : windup ? 110 : 84,
+          color: windup ? PAL.danger : PAL.pumpkin,
+          alpha: (intro ? 0.38 : 0.6) * dim,
+        },
+      });
+      if (windup && !this.ending) {
         const reach = BOSS_DASH_SPEED * BOSS_DASH_SEC + BOSS_RADIUS;
         drawDashWarning(this.warnings, boss.pos, boss.dashDir, reach, 1 - boss.phaseTimer / BOSS_WINDUP_SEC);
       }
     }
 
     // Player.
-    const bob = this.moving ? -Math.abs(Math.sin(t * 0.016)) * BOB_PX : 0;
+    const flame01 = lost ? 0 : flame / FLAME_MAX;
+    const bob = this.moving && !this.ending ? -Math.abs(Math.sin(t * 0.016)) * BOB_PX : 0;
     const flash = Math.max(0, (this.hurtUntil - time) / HURT_FLASH_MS);
-    drawPumpkin(g, player.x, player.y + bob, PLAYER_DRAW_RADIUS, flame / FLAME_MAX, t, 0, flash);
+    drawPumpkin(g, player.x, player.y + bob, PLAYER_DRAW_RADIUS, flame01, t, 0, flash);
+    // A wide, faint halo: enough to glow without washing out the pumpkin's face.
+    sources.push({ pos: player, radius: 0, strength: 0, halo: { radius: 56 + 34 * flame01, color: PAL.pumpkin, alpha: 0.2 * dim } });
 
     this.fogLayer.clear();
     drawFog(this.fogLayer, WIDTH, HEIGHT, t, 0.07);
 
     const flicker = 1 + Math.sin(t * 0.006) * 0.025 + Math.sin(t * 0.011) * 0.015;
-    this.lantern.update(player, flame, flicker, glows);
+    // The lantern shrinks to nothing as the flame goes out (R15.3).
+    const radius = lightRadius(flame) * flicker * (lost ? (1 - progress) ** 1.5 : 1);
+    this.lantern.update({
+      grid: layout.grid,
+      player,
+      radius,
+      sources,
+      darkness: won ? DARKNESS_ALPHA * (1 - progress) : lost ? DARKNESS_ALPHA + (0.97 - DARKNESS_ALPHA) * progress : undefined,
+      rayCount: this.rayCount,
+    });
 
     this.fireflies.clear();
-    if (!isReducedMotion()) {
+    if (!isReducedMotion() && !lost) {
       drawFireflies(this.fireflies, WIDTH, HEIGHT, time, FIREFLY_COUNT, FIREFLY_COLORS[layout.theme]);
     }
 
     this.drawMessagePanel();
-    this.hud.update(this.state, t);
+    this.hud.update(view, t);
   }
 
   private drawMessagePanel(): void {

@@ -9,11 +9,11 @@ A Halloween roguelike for [Kiroween 2026](https://kiroween.devpost.com/). You ar
 
 ![Lantern Run title screen](screenshots/home.png)
 
-| A dark graveyard, lit by the lantern | The Pumpkin King winds up a dash |
+| Headstones cast shadows from the lantern | The Pumpkin King winds up a dash in a candle-lit crypt |
 |---|---|
 | ![Graveyard room](screenshots/room.png) | ![Boss room](screenshots/boss.png) |
-
-![Upgrade choice with a trade-off card](screenshots/upgrades.png)
+| **Carved pumpkins light the patch** | **Upgrades, with a trade-off card** |
+| ![Pumpkin patch room](screenshots/patch.png) | ![Upgrade choice](screenshots/upgrades.png) |
 
 ## Run locally
 
@@ -32,6 +32,7 @@ Dev aids, for testing and screenshots only:
 - `?scene=RunScene` opens a run directly. `&seed=N&room=R` starts in room R of seed N.
 - `?choose=1` opens the upgrade cards at once. `?pause=1` starts paused.
 - `&freeze=1` stops the room from advancing. `&bossPhase=windup` (room 4) shows the Pumpkin King about to dash.
+- `&nobanner=1` skips the opening wipe, the room banner, and the boss intro. `&flame=N` sets the starting flame. `&atDoor=1` starts at the door with the goal met. `&fps=1` shows the frame rate.
 - `?touch=1` shows the touch controls on a desktop.
 
 ## Controls
@@ -49,7 +50,9 @@ Dev aids, for testing and screenshots only:
 ## Run structure
 
 - Four rooms: three trial rooms (Graveyard, Chapel, Pumpkin Patch, each once per run in a random order) and the boss room (Crypt).
-- The rooms are dark. Your lantern lights the way, and the light shrinks as the flame burns down.
+- The rooms are dark. Your lantern lights the way, walls cast shadows, and the light shrinks as the flame burns down.
+- Each room has its own lights: spirit candles in the graveyard, stained glass in the chapel, carved pumpkins in the patch, and candles in the crypt.
+- A run opens and moves between rooms with a circle wipe around the pumpkin. The boss room opens with an intro, and losing ends with the flame going out in a puff of smoke.
 - Each room starts with the flame at 100. The room is cleared by collecting its candy goal and reaching the door.
 - Chase ghosts find their way around walls. Blink ghosts fade out just before they teleport.
 - The Pumpkin King chases you, stops to wind up, and dashes along a red warning line. Step aside.
@@ -58,14 +61,14 @@ Dev aids, for testing and screenshots only:
 
 ## Accessibility
 
-- Reduced motion follows your browser's `prefers-reduced-motion` setting and can be toggled in the menu and while paused. It turns off camera shake, bobbing, flicker, fog drift, and fireflies.
+- Reduced motion follows your browser's `prefers-reduced-motion` setting and can be toggled in the menu and while paused. It turns off camera shake, bobbing, flicker, fog drift, fireflies, embers, wisps, leaves, and the menu intro, and swaps the circle wipe for a fade.
 - HUD text is at least 18 px at the base size. Hits pulse the screen edges instead of flashing the whole screen.
 
 ## How Kiro was used
 
 The project was built in Kiro with a spec-driven workflow:
 
-- **Spec:** `.kiro/specs/lantern-run/` holds `requirements.md` (14 requirement groups with acceptance criteria), `design.md` (modules, data types, tuning values, test plan), and `tasks.md` (the implementation plan with status). The spec was rewritten once when the game changed from three nights to a roguelike, and the task list tracks that change.
+- **Spec:** `.kiro/specs/lantern-run/` holds `requirements.md` (15 requirement groups with acceptance criteria), `design.md` (modules, data types, tuning values, test plan), and `tasks.md` (the implementation plan with status). The spec was rewritten once when the game changed from three nights to a roguelike, and the task list tracks that change.
 - **Steering:** `.kiro/steering/` holds `product.md` (scope rules and judging priorities), `tech.md` (stack and code rules, such as keeping `src/core/` free of Phaser imports and requiring a seeded RNG), and `style-guide.md` (palette, motion limits, HUD layout).
 - **Hooks:** `.kiro/hooks/` runs the TypeScript check on every `.ts` save, and runs the test suite after each spec task.
 - **Property-based tests:** `tests/` uses fast-check to check rules such as flame bounds, deterministic level generation, ghost movement, and blow behavior. They run after each change to the core logic.

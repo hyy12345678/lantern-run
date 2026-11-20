@@ -11,7 +11,10 @@ export type SoundName =
   | 'runEnd'
   | 'doorOpen'
   | 'ember'
-  | 'bossWindup';
+  | 'bossWindup'
+  | 'ignite'
+  | 'bossIntro'
+  | 'flameOut';
 
 interface NoteSpec {
   freq: number;
@@ -60,6 +63,18 @@ const RECIPES: Record<SoundName, NoteSpec[]> = {
   ],
   // Low rising growl that warns of the dash. Quiet on purpose: no loud jump scares.
   bossWindup: [{ freq: 70, slideTo: 150, start: 0, dur: 0.75, type: 'sawtooth', gain: 0.07 }],
+  // A match strike, then a soft whoosh as the lantern catches.
+  ignite: [
+    { freq: 1800, slideTo: 600, start: 0, dur: 0.08, type: 'square', gain: 0.04 },
+    { freq: 180, slideTo: 420, start: 0.12, dur: 0.6, type: 'triangle', gain: 0.12 },
+  ],
+  // Deep, quiet swell for the boss intro.
+  bossIntro: [
+    { freq: 55, slideTo: 82, start: 0, dur: 1.4, type: 'sawtooth', gain: 0.06 },
+    { freq: 110, slideTo: 98, start: 0.5, dur: 1.0, type: 'triangle', gain: 0.07 },
+  ],
+  // A small breath that fades, for the flame going out.
+  flameOut: [{ freq: 420, slideTo: 90, start: 0, dur: 0.9, type: 'sine', gain: 0.1 }],
 };
 
 let muted = false;
