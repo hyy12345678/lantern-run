@@ -325,3 +325,39 @@ Scenes are verified by playing the build and with headless screenshots. Automate
 | Last Ember saves the flame once per room and resets in the next room | R9.1, R9.8 |
 | Sweet Tooth collects candy that the base radius would miss | R4.1 |
 | Boss: no movement during wind-up, dash follows the locked direction, boss stays on walkable tiles | R10.5 to R10.7 |
+
+## 13. Phase E: visual impact
+
+### Light occlusion (core)
+
+`castLightRays(grid, origin, radius, rayCount)` casts rays evenly around the origin with a grid traversal (DDA),
+so no wall tile is skipped. A ray stops at the far side of the first wall tile it enters, so that wall stays lit
+and everything behind it is in shadow. Each ray returns `{ end, blocked }`.
+
+### Lighting renderer (UI)
+
+Each frame, in `src/ui/Lantern.ts`:
+
+1. Light mask (off-screen RenderTexture): stamp a soft white brush at the player, then erase shadow wedges built
+   from consecutive rays where at least one ray is blocked. Stamp the other light sources (not occluded).
+2. Darkness (cool `0x070b22`, alpha 0.8): fill, then erase the light mask.
+3. Warm tint: an additive orange brush at the player, below the darkness, so shadows hide it.
+4. Halos: pooled additive images in each source's color, above the darkness. This gives a bloom look without a
+   full-screen post-process, so it also works on the Canvas renderer and costs little on phones.
+
+Ray count: 288 on desktop, 180 on touch devices.
+
+### Moments
+
+| Moment | How |
+|---|---|
+| Run start and room change | Iris wipe: an off-screen black RenderTexture with a circle erased, tweened around the pumpkin. The next room's state is applied while the screen is closed. Reduced motion uses the fade. |
+| Flame out | Light radius and glows scale down over 1.5 s, smoke puffs, message, then a camera fade to the result screen. |
+| Boss intro | Letterbox bars, the King's name, a brighter boss glow, and a quiet rumble. The run does not step during it. |
+| Menu intro | Black overlay, sparks, the pumpkin lights up, then the title and menu fade in. Played once per session. |
+
+### Particles and ambience
+
+Phaser particle emitters with generated textures (`src/ui/textures.ts`): embers and ghost wisps are emitted from
+the scene with `emitParticleAt`. Graveyard leaves fall under the darkness, so they show only in the light.
+Theme lights come from `buildStaticLayer`, which now returns `{ layer, lights }`. Positions are picked with `tileHash`.

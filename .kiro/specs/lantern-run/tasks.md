@@ -115,6 +115,25 @@ repo. Items marked "superseded" were built for the three-night version and are r
   - HUD text at 18 px or more with a flame number, flicker at 0.5 to 2 Hz, fog under 20 px/s, reduced-motion toggle.
   - Covers: R14.7, R14.8.
 
+## Phase E: Visual impact (before the 2026-11-30 freeze)
+
+- [x] 35. Light occlusion in core
+  - `src/core/visibility.ts`: grid ray casting (DDA). Tests in `tests/visibility.test.ts`.
+  - Covers: R15.1.
+- [x] 36. Lighting renderer
+  - Light mask with shadows, cool darkness, warm tint under it, additive halos above it. Fewer rays on touch.
+  - Covers: R15.1, R15.2, R15.10.
+- [x] 37. Cinematic moments
+  - Flame-out, iris transitions, boss intro.
+  - Covers: R15.3 to R15.5.
+- [x] 38. Menu intro
+  - Covers: R15.6.
+- [x] 39. Particles and candy flight
+  - Covers: R15.7, R15.9.
+- [x] 40. Theme ambience
+  - Covers: R15.8.
+- [x] 41. Cover image and README screenshots
+
 ## Schedule
 
 - Phase A (tasks 6 to 10): by 2026-11-17.

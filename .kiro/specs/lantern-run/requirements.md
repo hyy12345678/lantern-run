@@ -187,6 +187,21 @@ goal and a result.
 8. WHILE a room is running THEN all HUD text SHALL be at least 18 px at the 960 x 544 base size, and the flame bar SHALL show its value as a number.
 9. WHEN titles are shown THEN they SHALL use the display font. HUD and body text SHALL use the plain font. Both fonts SHALL be OFL and listed in `CREDITS.md`.
 
+### Requirement 15: Cinematic lighting and moments
+**User story:** As a judge watching a short demo, I want the light, shadows, and key moments to look striking, so that the game is memorable.
+
+#### Acceptance criteria
+1. WHILE a room is running THEN walls SHALL block the lantern light and cast shadows away from the player. The first wall a ray reaches SHALL stay lit.
+2. WHILE a room is running THEN light sources (lantern, candy, ghosts, door, boss, theme lights) SHALL have an additive glow. Light near the lantern SHALL be warm and the darkness SHALL be cool.
+3. WHEN the flame goes out THEN the lantern light SHALL shrink to nothing and smoke SHALL rise from the pumpkin over about 1.5 s before the result screen.
+4. WHEN the player moves between rooms, and when a run starts, THEN the screen SHALL close or open as a circle centred on the pumpkin. With reduced motion it SHALL fade instead.
+5. WHEN the boss room starts THEN the system SHALL show an intro of about 2 s with letterbox bars and the Pumpkin King's name. The room SHALL NOT advance during it. Enter or Space SHALL skip it.
+6. WHEN the menu opens for the first time in a session THEN the lantern SHALL light up in a short intro before the title appears. Any key or tap SHALL skip it. Reduced motion SHALL skip it entirely.
+7. WHEN the player moves THEN embers SHALL trail from the pumpkin. WHEN candy is collected THEN it SHALL fly to the HUD counter. Ghosts SHALL leave a faint wisp trail.
+8. WHILE a room is running THEN each theme SHALL have its own lights or ambience: spirit candles and falling leaves in the graveyard, stained-glass light in the chapel, carved pumpkins in the pumpkin patch, and candles in the crypt.
+9. WHEN reduced motion is on THEN embers, wisps, and leaves SHALL stop, and the boss intro SHALL show without sliding or scaling.
+10. WHEN the game runs on a touch device THEN the system SHALL cast fewer light rays to save power.
+
 ## Out of scope for MVP
 - Meta progression across runs (unlocks, persistent upgrades).
 - Minions spawned by the boss.
