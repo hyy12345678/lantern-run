@@ -107,7 +107,7 @@ goal and a result.
 **User story:** As a player, I want each room to look different, so that the run feels varied.
 
 #### Acceptance criteria
-1. WHEN a trial room is generated THEN the system SHALL pick its theme from Graveyard, Chapel, and Pumpkin Patch using the run seed.
+1. WHEN a trial room is generated THEN the system SHALL pick its theme from Graveyard, Chapel, and Pumpkin Patch using the run seed. Each run SHALL use every trial theme exactly once, in a seeded order.
 2. WHEN the boss room is generated THEN the system SHALL use the Crypt theme.
 3. WHEN a theme is applied THEN the system SHALL change the floor, wall, border, and door colors and decorations only. Rules SHALL NOT change between themes.
 

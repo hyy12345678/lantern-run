@@ -89,29 +89,29 @@ repo. Items marked "superseded" were built for the three-night version and are r
 
 ## Phase D: Polish and depth (before the 2026-11-30 freeze)
 
-- [ ] 26. Structured room layouts
+- [x] 26. Structured room layouts
   - Straight wall segments with clearance, lower density in the boss room.
   - Covers: R7.7, R4.4.
-- [ ] 27. Chase ghosts follow paths
+- [x] 27. Chase ghosts follow paths
   - Straight line when clear, BFS route otherwise.
   - Covers: R5.2.
-- [ ] 28. Eight upgrades with trade-offs
+- [x] 28. Eight upgrades with trade-offs
   - Additive and multiplicative stacking, Sweet Tooth, Hungry Flame, Last Ember, drawback line on cards.
   - Covers: R9.1, R9.6 to R9.8, R4.1.
-- [ ] 29. Pumpkin King dash
+- [x] 29. Pumpkin King dash
   - Chase, wind-up with a warning line, dash. Stops at walls.
   - Covers: R10.5 to R10.7.
-- [ ] 30. Core tests for tasks 26 to 29
+- [x] 30. Core tests for tasks 26 to 29
   - Covers: design.md section 12 test table. Adds `tests/boss.test.ts`.
-- [ ] 31. Lantern light and glows
+- [x] 31. Lantern light and glows
   - Covers: R14.1, R14.2.
-- [ ] 32. Feedback and readability
+- [x] 32. Feedback and readability
   - Room banner, door opening, chase and blink cues, boss warning line, floating "+N", hit edge pulse, pumpkin bob.
   - Covers: R14.3 to R14.6, R10.6.
-- [ ] 33. Art pass
+- [x] 33. Art pass
   - Floors without grid outlines, connected walls, fireflies, menu skyline, Creepster titles, how-to-play row on the menu.
   - Covers: R14.9, R13.3.
-- [ ] 34. Style guide compliance
+- [x] 34. Style guide compliance
   - HUD text at 18 px or more with a flame number, flicker at 0.5 to 2 Hz, fog under 20 px/s, reduced-motion toggle.
   - Covers: R14.7, R14.8.
 

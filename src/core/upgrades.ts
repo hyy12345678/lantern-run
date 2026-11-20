@@ -113,7 +113,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
   hungryFlame: {
     name: 'Hungry Flame',
     description: `Candy restores ${HUNGRY_FLAME_BONUS} more flame.`,
-    drawback: 'Your flame burns 50% faster.',
+    drawback: 'Flame burns 50% faster.',
     apply: (m) => ({
       ...m,
       candyRestore: m.candyRestore + HUNGRY_FLAME_BONUS,

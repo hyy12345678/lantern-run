@@ -183,6 +183,16 @@ describe('room generation', () => {
     );
   });
 
+  it('visits each trial theme exactly once per run (R8.1)', () => {
+    fc.assert(
+      fc.property(seedArb, (seed) => {
+        const themes = [1, 2, 3].map((i) => generateRoom(i as 1 | 2 | 3, seed).theme);
+        return new Set(themes).size === 3 && themes.every((t) => TRIAL_THEMES.includes(t));
+      }),
+      { numRuns: 100 },
+    );
+  });
+
   it('uses a trial theme for rooms 1 to 3 and the crypt for the boss room', () => {
     fc.assert(
       fc.property(seedArb, (seed) => {

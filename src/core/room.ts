@@ -19,13 +19,21 @@ import {
 } from './config';
 import { createBoss } from './boss';
 import { createGrid, distanceMap, findPath, inBounds, tileCenter, tileIndex } from './grid';
-import { drawFloat, drawInt, mixSeed } from './rng';
+import { drawFloat, drawInt, mixSeed, shuffled } from './rng';
 import { BOSS_THEME, TRIAL_THEMES } from './themes';
 import type { Ghost, GhostKind, Grid, RoomLayout, Tile, ThemeId, Vec2 } from './types';
 
 const GHOST_KIND_ROTATION: readonly GhostKind[] = ['patrol', 'chase', 'blink'];
 const START_COL = 2;
 const DOOR_COL = MAP_COLS - 3;
+
+/** Random stream used only for the order of trial themes, separate from the room layouts. */
+const THEME_STREAM = 200;
+
+/** The three trial themes in a seeded order, so each run visits every trial theme once (R8.1). */
+export function trialThemeOrder(seed: number): ThemeId[] {
+  return shuffled(TRIAL_THEMES, mixSeed(seed, THEME_STREAM)).value;
+}
 
 /**
  * Builds one room deterministically from (roomIndex, seed).
@@ -44,8 +52,7 @@ export function generateRoom(roomIndex: 1 | 2 | 3 | 4, seed: number): RoomLayout
     return draw.value;
   };
 
-  const theme: ThemeId =
-    roomIndex === BOSS_ROOM_INDEX ? BOSS_THEME : TRIAL_THEMES[nextInt(0, TRIAL_THEMES.length - 1)];
+  const theme: ThemeId = roomIndex === BOSS_ROOM_INDEX ? BOSS_THEME : trialThemeOrder(seed)[roomIndex - 1];
 
   const grid = createGrid(MAP_COLS, MAP_ROWS, true);
   const set = (tile: Tile, walkable: boolean): void => {
