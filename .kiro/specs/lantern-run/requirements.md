@@ -65,7 +65,7 @@ goal and a result.
 **User story:** As a player, I want to collect candy, so that I can restore flame and meet the room goal.
 
 #### Acceptance criteria
-1. WHEN the player comes within 24 px of a candy THEN the system SHALL collect it.
+1. WHEN the player comes within the pickup radius of a candy THEN the system SHALL collect it. The base radius is 24 px, modified by the Sweet Tooth upgrade.
 2. WHEN candy is collected THEN the system SHALL add the restore amount to the flame, capped at 100. The base restore is 15, modified by the Bright Wick upgrade.
 3. WHEN candy is collected THEN the system SHALL remove it from the room and increase the room candy count by 1.
 4. WHEN a room is generated THEN the system SHALL place candy only on walkable tiles reachable from the start.
@@ -75,7 +75,7 @@ goal and a result.
 
 #### Acceptance criteria
 1. WHEN a patrol ghost is active THEN the system SHALL move it along its fixed loop at 40 px/s.
-2. WHEN a chase ghost is within 160 px of the player THEN the system SHALL move it toward the player at 50 px/s.
+2. WHEN a chase ghost is within 160 px of the player THEN the system SHALL move it toward the player at 50 px/s. If walls block the straight line, it SHALL follow the shortest walkable route instead of pressing against the wall.
 3. WHEN a blink ghost's timer expires THEN the system SHALL teleport it to a random walkable tile within 200 px of the player, then wait 3 seconds.
 4. WHEN a ghost touches the player THEN the system SHALL subtract the ghost damage from the flame. The base damage is 25, modified by the Iron Pumpkin upgrade.
 5. WHEN a ghost has damaged the player THEN the system SHALL ignore further contact from that ghost for 1 second.
@@ -101,6 +101,7 @@ goal and a result.
 4. WHEN the player reaches the door with the candy count below the goal THEN the system SHALL not clear the room and SHALL show how many more candies are needed.
 5. WHEN a room is loaded THEN the system SHALL set the regular ghost count to 2 in room 1, 3 in room 2, 4 in room 3, and 2 in the boss room.
 6. WHEN a room is generated from the run seed and room index THEN the system SHALL produce the same layout every time.
+7. WHEN a room is generated THEN interior walls SHALL form straight rows of 2 to 5 tiles. Each row SHALL be separated from every other wall by at least one walkable tile in all eight directions, so every walkable tile stays reachable. The boss room SHALL use a lower wall density than trial rooms.
 
 ### Requirement 8: Themes
 **User story:** As a player, I want each room to look different, so that the run feels varied.
@@ -114,11 +115,22 @@ goal and a result.
 **User story:** As a player, I want to choose upgrades between rooms, so that each run builds differently.
 
 #### Acceptance criteria
-1. WHEN the player has the upgrade pool THEN the system SHALL define exactly five upgrades: Bright Wick (candy restore 15 to 20), Swift Feet (speed 120 to 138 px/s), Quick Breath (blow radius 120 to 150 px and cooldown 5 to 3.5 s), Thick Wax (flame decay 1.5 to 1.125 per second), and Iron Pumpkin (ghost damage 25 to 15).
+1. WHEN the player has the upgrade pool THEN the system SHALL define exactly eight upgrades:
+   - Bright Wick: candy restore +5 (15 to 20).
+   - Swift Feet: speed x1.15 (120 to 138 px/s).
+   - Quick Breath: blow radius 120 to 150 px, cooldown 5 to 3.5 s.
+   - Thick Wax: flame decay x0.75 (1.5 to 1.125 per second).
+   - Iron Pumpkin: ghost damage -10 (25 to 15).
+   - Sweet Tooth: candy pickup radius 24 to 56 px.
+   - Hungry Flame (trade-off): candy restore +15, but flame decay x1.5.
+   - Last Ember: once per room, when the flame would go out, it relights at 30 instead.
 2. WHEN a trial room is cleared THEN the system SHALL offer three distinct upgrades the player does not already have. If fewer than three remain, it SHALL offer all remaining ones. If none remain, it SHALL skip the choice.
 3. WHEN the player picks an upgrade THEN the system SHALL apply it for the rest of the run and load the next room.
 4. WHEN the same run seed and room index are used THEN the system SHALL offer the same three upgrades.
 5. WHEN the boss room is cleared THEN the system SHALL NOT offer upgrades.
+6. WHEN several upgrades change the same stat THEN the system SHALL combine them so the result does not depend on the order they were taken (additions add, multipliers multiply).
+7. WHEN an upgrade has a drawback THEN its card SHALL show the drawback on a separate line in the warning color.
+8. WHEN Last Ember saves the flame THEN the system SHALL show and play a distinct effect, and SHALL NOT save it again until the next room.
 
 ### Requirement 10: Pumpkin King (boss)
 **User story:** As a player, I want a boss at the end of the run that raises the stakes.
@@ -128,6 +140,9 @@ goal and a result.
 2. WHILE the boss room is running THEN the system SHALL move the Pumpkin King toward the player at 55 px/s, regardless of distance.
 3. WHEN the Pumpkin King touches the player THEN the system SHALL subtract 35 flame and ignore further contact from it for 1 second.
 4. WHEN the boss room is cleared THEN the system SHALL show a message that the King retreats and end the run as won.
+5. WHILE the boss room is running THEN the Pumpkin King SHALL repeat a cycle: chase for 3.5 s, wind up for 0.8 s without moving, then dash for 0.45 s at 260 px/s in the direction locked at the start of the wind-up.
+6. WHILE the Pumpkin King is winding up THEN the system SHALL draw a warning line along the locked dash direction, so the player can step aside.
+7. WHEN the dash would enter a wall THEN the Pumpkin King SHALL stop at the wall and return to chasing.
 
 ### Requirement 11: Scoring and best score
 **User story:** As a player, I want a score and a saved best score, so that I have a reason to replay.
@@ -157,6 +172,20 @@ goal and a result.
 4. WHEN the player moves from one room to the next THEN the system SHALL show a fade transition of about 400 ms.
 5. WHEN the upgrade choice is shown THEN the system SHALL display three cards, each with a drawn icon, name, and one-line description.
 6. WHEN the game ships THEN every third-party asset SHALL be listed in `public/assets/CREDITS.md` with its source and license.
+
+### Requirement 14: Lantern light, feedback, and accessibility
+**User story:** As a player, I want the lantern to light up the dark and every danger to be readable, so that the room feels haunted but fair.
+
+#### Acceptance criteria
+1. WHILE a room is running THEN the system SHALL cover the room in darkness and light a soft circle around the player. The light radius SHALL grow with the flame: about 80 px at flame 0 and about 210 px at flame 100.
+2. WHILE a room is running THEN ghosts, the Pumpkin King, candies, and the door SHALL each give off a small glow, so they stay visible outside the lantern light.
+3. WHEN a room starts THEN the system SHALL show a banner with the theme name and the room goal for about 2 seconds, without pausing the room.
+4. WHEN the candy goal is met THEN the door SHALL visibly open and play a sound.
+5. WHEN a chase ghost is chasing THEN the system SHALL mark it. WHEN a blink ghost is less than 0.6 s from teleporting THEN the system SHALL fade it out.
+6. WHEN the player is hit THEN the system SHALL pulse the screen edges in the warning color. It SHALL NOT flash the full screen.
+7. WHEN the player turns on reduced motion THEN the system SHALL turn off camera shake, bobbing, flicker, fog drift, and floating particles. The setting SHALL be togglable from the menu and the pause screen and SHALL default to the browser's `prefers-reduced-motion` setting.
+8. WHILE a room is running THEN all HUD text SHALL be at least 18 px at the 960 x 544 base size, and the flame bar SHALL show its value as a number.
+9. WHEN titles are shown THEN they SHALL use the display font. HUD and body text SHALL use the plain font. Both fonts SHALL be OFL and listed in `CREDITS.md`.
 
 ## Out of scope for MVP
 - Meta progression across runs (unlocks, persistent upgrades).

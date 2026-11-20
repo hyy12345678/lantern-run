@@ -269,3 +269,59 @@ Scenes are verified by playing the build and with headless screenshots. Automate
 - `RunState.nightIndex`, `candiesThisNight`, `nightStartScore`, and the `retryNight` function are removed.
 - `NightScene` becomes `RunScene`. `ResultScene` is new.
 - Existing core tests for flame, candy, ghosts, blow, grid, and rng still apply. Tests for night generation and run flow are rewritten.
+
+## 12. Phase D: polish and depth
+
+### Core changes
+
+- **Room layout (R7.7).** Interior walls are placed as straight segments of 2 to 5 tiles, horizontal or vertical,
+  starting at column and row 2 or more. A segment is placed only if none of its tiles or their 8 neighbours is
+  already a wall. Wall components are therefore isolated straight lines, which cannot enclose space, so every
+  walkable tile is reachable without carving a route. The start 3 x 3 area and the door tile are cleared after.
+  Target density: `WALL_DENSITY` (0.18) in trial rooms, `BOSS_WALL_DENSITY` (0.1) in the boss room.
+  Placement stops at the target or after `WALL_SEGMENT_ATTEMPTS` tries.
+- **Chase (R5.2).** If a circle of `GHOST_RADIUS` can travel the straight line to the player, the ghost moves
+  straight. Otherwise it moves toward the centre of the next tile on the BFS route.
+- **Modifiers.** New fields: `candyPickupRadius: number`, `lastEmber: boolean`. Upgrades now change stats
+  relatively (`+5`, `x0.75`), so the order they are taken in does not matter.
+- **RunState.** New field `emberUsed: boolean`, reset when a room starts. New event `{ type: 'emberSaved' }`.
+- **Boss.** `Boss` gains `phase: 'chase' | 'windup' | 'dash'`, `phaseTimer: number`, `dashDir: Vec2`.
+  The direction is locked when the wind-up starts. A dash ends early when the boss cannot move further.
+
+| Key | Value |
+|---|---|
+| `BOSS_WALL_DENSITY` | 0.1 |
+| `WALL_SEGMENT_MIN` / `MAX` | 2 / 5 |
+| `WALL_SEGMENT_ATTEMPTS` | 600 |
+| `BOSS_CHASE_SEC` / `BOSS_WINDUP_SEC` / `BOSS_DASH_SEC` | 3.5 / 0.8 / 0.45 |
+| `BOSS_DASH_SPEED` | 260 px/s |
+| `BRIGHT_WICK_BONUS` | +5 |
+| `SWIFT_FEET_FACTOR` | 1.15 |
+| `THICK_WAX_FACTOR` | 0.75 |
+| `IRON_PUMPKIN_REDUCTION` | 10 |
+| `SWEET_TOOTH_RADIUS` | 56 px |
+| `HUNGRY_FLAME_BONUS` / `HUNGRY_FLAME_FACTOR` | +15 / x1.5 |
+| `LAST_EMBER_FLAME` | 30 |
+
+### Presentation changes (UI only, no core rules)
+
+- `src/ui/Lantern.ts`: a full-screen RenderTexture filled with the night colour. Each frame it erases a soft
+  radial brush at the player (radius from flame), plus smaller glows at ghosts, the boss, candies, and the door.
+- `src/ui/settings.ts`: session setting for reduced motion, defaulting to `prefers-reduced-motion`.
+  Scenes pass `animTime = reduced ? 0 : time` to drawing functions, which freezes bob, flicker, and drift.
+- `src/ui/Banner.ts`: room intro banner. `src/ui/fx.ts` gains `floatText` and `edgePulse` (replaces the full-screen flash).
+- Fonts: Creepster (OFL) for titles, Fredoka (OFL) for HUD and body.
+
+### Tests
+
+| Property | Requirement |
+|---|---|
+| Every walkable tile of a generated room is reachable from the start | R7.7, R4.4 |
+| No two wall segments touch, including diagonally | R7.7 |
+| Boss room has fewer walls than the trial-room target | R7.7 |
+| A chase ghost behind a wall with a gap reaches the player | R5.2 |
+| `applyUpgrades` gives the same modifiers for any order of the same upgrades | R9.6 |
+| Each upgrade alone matches its documented value | R9.1 |
+| Last Ember saves the flame once per room and resets in the next room | R9.1, R9.8 |
+| Sweet Tooth collects candy that the base radius would miss | R4.1 |
+| Boss: no movement during wind-up, dash follows the locked direction, boss stays on walkable tiles | R10.5 to R10.7 |
