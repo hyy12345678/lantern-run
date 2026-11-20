@@ -6,7 +6,13 @@ import { applyUpgrades } from '../src/core/upgrades';
 import type { UpgradeId } from '../src/core/upgrades';
 import { generateRoom } from '../src/core/room';
 import { isWalkablePoint } from '../src/core/grid';
-import { FLAME_MAX, FLAME_MIN, ROOM_CANDY_GOALS, QUICK_BREATH_COOLDOWN_SEC } from '../src/core/config';
+import {
+  FLAME_MAX,
+  FLAME_MIN,
+  LAST_EMBER_FLAME,
+  ROOM_CANDY_GOALS,
+  QUICK_BREATH_COOLDOWN_SEC,
+} from '../src/core/config';
 
 const NO_INPUT: RunInput = { move: { x: 0, y: 0 }, blow: false };
 const inputArb = fc.record({
@@ -144,6 +150,39 @@ describe('run loop', () => {
     const state: RunState = { ...createRun(4), modifiers: applyUpgrades(['quickBreath']) };
     const { state: next } = stepRun(state, { move: { x: 0, y: 0 }, blow: true }, 0);
     expect(next.blowCooldown).toBe(QUICK_BREATH_COOLDOWN_SEC);
+  });
+
+  it('Last Ember relights a dying flame once per room, then lets it go out (R9.1, R9.8)', () => {
+    const base: RunState = { ...createRun(8), modifiers: applyUpgrades(['lastEmber']), flame: 0.5 };
+    const saved = stepRun(base, NO_INPUT, 1);
+    expect(saved.state.status).toBe('playing');
+    expect(saved.state.flame).toBe(LAST_EMBER_FLAME);
+    expect(saved.state.emberUsed).toBe(true);
+    expect(saved.events).toContainEqual({ type: 'emberSaved' });
+
+    const again = stepRun({ ...saved.state, flame: 0.5 }, NO_INPUT, 1);
+    expect(again.state.status).toBe('lost');
+    expect(again.events.some((e) => e.type === 'emberSaved')).toBe(false);
+  });
+
+  it('Last Ember is ready again in the next room', () => {
+    const cleared = stepRun({ ...atDoorWithGoal(5, 1), emberUsed: true }, NO_INPUT, 0).state;
+    const next = chooseUpgrade(cleared, cleared.choices[0]);
+    expect(next.emberUsed).toBe(false);
+  });
+
+  it('without Last Ember the flame goes out normally', () => {
+    const { state } = stepRun({ ...createRun(8), flame: 0.5 }, NO_INPUT, 1);
+    expect(state.status).toBe('lost');
+  });
+
+  it('Sweet Tooth collects candy that the base pickup radius would miss (R4.1)', () => {
+    const start = createRun(1);
+    const candy = { x: start.player.x + 40, y: start.player.y };
+    const withCandy: RunState = { ...start, layout: { ...start.layout, candies: [candy] } };
+    expect(stepRun(withCandy, NO_INPUT, 0).state.candiesInRoom).toBe(0);
+    const sweet: RunState = { ...withCandy, modifiers: applyUpgrades(['sweetTooth']) };
+    expect(stepRun(sweet, NO_INPUT, 0).state.candiesInRoom).toBe(1);
   });
 
   it('Thick Wax slows flame decay', () => {

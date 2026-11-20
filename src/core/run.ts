@@ -5,6 +5,7 @@ import {
   DOOR_REACH_RADIUS,
   FLAME_START,
   GHOST_HIT_IMMUNITY_SEC,
+  LAST_EMBER_FLAME,
   PLAYER_RADIUS,
 } from './config';
 import { applyBlow, canBlow, tickCooldown } from './blow';
@@ -42,6 +43,8 @@ export interface RunState {
   /** Filled while status is `choosing`. */
   choices: UpgradeId[];
   modifiers: Modifiers;
+  /** True once Last Ember has saved the flame in this room. Reset when a room starts. */
+  emberUsed: boolean;
   layout: RoomLayout;
   status: RunStatus;
 }
@@ -59,6 +62,7 @@ export type RunEvent =
   | { type: 'blowUsed' }
   | { type: 'roomCleared'; room: RoomIndex }
   | { type: 'upgradeOffered'; choices: UpgradeId[] }
+  | { type: 'emberSaved' }
   | { type: 'runWon' }
   | { type: 'runLost' };
 
@@ -91,6 +95,7 @@ function enterRoom(carry: CarryOver): RunState {
     upgrades: carry.upgrades,
     choices: [],
     modifiers: carry.modifiers,
+    emberUsed: false,
     layout,
     status: 'playing',
   };
@@ -139,7 +144,7 @@ export function stepRun(state: RunState, input: RunInput, dt: number): RunStep {
 
   // Flame decays, then candy restores it.
   let flame = decayFlame(state.flame, dt, m.flameDecayPerSec);
-  const { remaining, collected } = collectCandies(player, layout.candies);
+  const { remaining, collected } = collectCandies(player, layout.candies, m.candyPickupRadius);
   let candiesInRoom = state.candiesInRoom;
   let runScore = state.runScore;
   for (let i = 0; i < collected.length; i++) {
@@ -189,6 +194,11 @@ export function stepRun(state: RunState, input: RunInput, dt: number): RunStep {
     blowCooldown,
     layout: { ...layout, candies: remaining, ghosts, boss },
   };
+
+  if (flame <= 0 && m.lastEmber && !state.emberUsed) {
+    events.push({ type: 'emberSaved' });
+    return { state: { ...next, flame: LAST_EMBER_FLAME, emberUsed: true }, events };
+  }
 
   if (flame <= 0) {
     events.push({ type: 'runLost' });

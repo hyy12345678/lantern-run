@@ -7,6 +7,11 @@ export const TILE_SIZE = 32;
 export const MAP_COLS = 30;
 export const MAP_ROWS = 17;
 export const WALL_DENSITY = 0.18;
+export const BOSS_WALL_DENSITY = 0.1;
+/** Walls are placed as straight segments of this many tiles. */
+export const WALL_SEGMENT_MIN = 2;
+export const WALL_SEGMENT_MAX = 5;
+export const WALL_SEGMENT_ATTEMPTS = 600;
 
 // Run structure
 export const ROOM_COUNT = 4;
@@ -64,13 +69,23 @@ export const BOSS_CONTACT_DAMAGE = 35;
 export const BOSS_HIT_IMMUNITY_SEC = 1;
 export const BOSS_MIN_TILE_DIST = 8;
 
-// Upgrade values (applied on top of the base values above)
-export const SWIFT_FEET_SPEED = 138;
-export const BRIGHT_WICK_RESTORE = 20;
-export const THICK_WAX_DECAY_PER_SEC = 1.125;
+// Boss dash cycle: chase, then stand still and wind up, then dash in the locked direction.
+export const BOSS_CHASE_SEC = 3.5;
+export const BOSS_WINDUP_SEC = 0.8;
+export const BOSS_DASH_SEC = 0.45;
+export const BOSS_DASH_SPEED = 260;
+
+// Upgrades change the base values relatively, so the order they are taken in does not matter.
+export const BRIGHT_WICK_BONUS = 5;
+export const SWIFT_FEET_FACTOR = 1.15;
 export const QUICK_BREATH_RADIUS = 150;
 export const QUICK_BREATH_COOLDOWN_SEC = 3.5;
-export const IRON_PUMPKIN_DAMAGE = 15;
+export const THICK_WAX_FACTOR = 0.75;
+export const IRON_PUMPKIN_REDUCTION = 10;
+export const SWEET_TOOTH_RADIUS = 56;
+export const HUNGRY_FLAME_BONUS = 15;
+export const HUNGRY_FLAME_FACTOR = 1.5;
+export const LAST_EMBER_FLAME = 30;
 
 // Scoring
 export const SCORE_PER_CANDY = 1;

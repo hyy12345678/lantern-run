@@ -35,10 +35,17 @@ export interface Ghost {
   rngState: number;
 }
 
+export type BossPhase = 'chase' | 'windup' | 'dash';
+
 export interface Boss {
   pos: Vec2;
   /** Seconds until the boss can damage the player again. */
   hitCooldown: number;
+  phase: BossPhase;
+  /** Seconds left in the current phase. */
+  phaseTimer: number;
+  /** Unit direction of the next or current dash. Locked when the wind-up starts. */
+  dashDir: Vec2;
 }
 
 export type ThemeId = 'graveyard' | 'chapel' | 'pumpkinPatch' | 'crypt';

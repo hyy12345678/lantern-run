@@ -11,8 +11,13 @@ import {
   PATROL_WAYPOINT_MIN,
   ROOM_CANDY_GOALS,
   ROOM_GHOST_COUNTS,
+  BOSS_WALL_DENSITY,
   WALL_DENSITY,
+  WALL_SEGMENT_ATTEMPTS,
+  WALL_SEGMENT_MAX,
+  WALL_SEGMENT_MIN,
 } from './config';
+import { createBoss } from './boss';
 import { createGrid, distanceMap, findPath, inBounds, tileCenter, tileIndex } from './grid';
 import { drawFloat, drawInt, mixSeed } from './rng';
 import { BOSS_THEME, TRIAL_THEMES } from './themes';
@@ -56,21 +61,13 @@ export function generateRoom(roomIndex: 1 | 2 | 3 | 4, seed: number): RoomLayout
     set({ col: 0, row }, false);
     set({ col: MAP_COLS - 1, row }, false);
   }
-  for (let row = 1; row < MAP_ROWS - 1; row++) {
-    for (let col = 1; col < MAP_COLS - 1; col++) {
-      if (nextFloat() < WALL_DENSITY) set({ col, row }, false);
-    }
-  }
+  const density = roomIndex === BOSS_ROOM_INDEX ? BOSS_WALL_DENSITY : WALL_DENSITY;
+  placeWallSegments(grid, density, nextFloat, nextInt);
 
-  // Guaranteed route: along the start row, then up or down the door column.
   const start: Tile = { col: START_COL, row: Math.floor(MAP_ROWS / 2) };
   const doorTile: Tile = { col: DOOR_COL, row: nextInt(2, MAP_ROWS - 3) };
-  for (let col = start.col; col <= doorTile.col; col++) set({ col, row: start.row }, true);
-  const topRow = Math.min(start.row, doorTile.row);
-  const bottomRow = Math.max(start.row, doorTile.row);
-  for (let row = topRow; row <= bottomRow; row++) set({ col: doorTile.col, row }, true);
 
-  // Keep the start area open so a room never begins boxed in.
+  // Keep the start area open so a room never begins boxed in. Removing walls cannot disconnect anything.
   for (let dRow = -1; dRow <= 1; dRow++) {
     for (let dCol = -1; dCol <= 1; dCol++) {
       set({ col: start.col + dCol, row: start.row + dRow }, true);
@@ -128,7 +125,7 @@ export function generateRoom(roomIndex: 1 | 2 | 3 | 4, seed: number): RoomLayout
     );
     // The map is large enough that candidates always exist. The fallback keeps the type non-null.
     const [bossTile] = pickDistinct(bossCandidates, 1, nextInt);
-    boss = { pos: tileCenter(bossTile ?? open[open.length - 1]), hitCooldown: 0 };
+    boss = createBoss(tileCenter(bossTile ?? open[open.length - 1]));
   }
 
   return {
@@ -143,6 +140,52 @@ export function generateRoom(roomIndex: 1 | 2 | 3 | 4, seed: number): RoomLayout
     ghosts,
     boss,
   };
+}
+
+/**
+ * Places straight wall segments until about `density` of the interior is wall.
+ * A segment is placed only when none of its tiles or their eight neighbours is already a wall,
+ * and it never touches the border. Wall pieces are therefore isolated straight lines, which
+ * cannot close off any area, so every walkable tile stays reachable.
+ */
+function placeWallSegments(
+  grid: Grid,
+  density: number,
+  nextFloat: () => number,
+  nextInt: (min: number, max: number) => number,
+): void {
+  const interior = (grid.cols - 2) * (grid.rows - 2);
+  const target = Math.round(interior * density);
+  // Segments start two tiles in from the edge, so a walkable tile always separates them from the border.
+  const minCell = 2;
+  let walls = 0;
+  for (let attempt = 0; attempt < WALL_SEGMENT_ATTEMPTS && walls < target; attempt++) {
+    const horizontal = nextFloat() < 0.5;
+    const len = nextInt(WALL_SEGMENT_MIN, WALL_SEGMENT_MAX);
+    const maxCol = grid.cols - 1 - minCell - (horizontal ? len - 1 : 0);
+    const maxRow = grid.rows - 1 - minCell - (horizontal ? 0 : len - 1);
+    if (maxCol < minCell || maxRow < minCell) continue;
+    const col = nextInt(minCell, maxCol);
+    const row = nextInt(minCell, maxRow);
+    const tiles: Tile[] = [];
+    for (let i = 0; i < len; i++) {
+      tiles.push(horizontal ? { col: col + i, row } : { col, row: row + i });
+    }
+    if (!tiles.every((t) => hasClearance(grid, t))) continue;
+    for (const t of tiles) grid.walkable[tileIndex(grid, t)] = false;
+    walls += len;
+  }
+}
+
+/** True when the tile and its eight neighbours are all walkable. */
+function hasClearance(grid: Grid, tile: Tile): boolean {
+  for (let dRow = -1; dRow <= 1; dRow++) {
+    for (let dCol = -1; dCol <= 1; dCol++) {
+      const near = { col: tile.col + dCol, row: tile.row + dRow };
+      if (!inBounds(grid, near) || !grid.walkable[tileIndex(grid, near)]) return false;
+    }
+  }
+  return true;
 }
 
 function buildPatrolPath(

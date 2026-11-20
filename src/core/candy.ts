@@ -8,11 +8,15 @@ export interface CandyCollection {
 }
 
 /** Splits candies into those within pickup range of the player and those left behind. */
-export function collectCandies(player: Vec2, candies: readonly Vec2[]): CandyCollection {
+export function collectCandies(
+  player: Vec2,
+  candies: readonly Vec2[],
+  radius: number = CANDY_PICKUP_RADIUS,
+): CandyCollection {
   const remaining: Vec2[] = [];
   const collected: Vec2[] = [];
   for (const candy of candies) {
-    if (distance(player, candy) <= CANDY_PICKUP_RADIUS) {
+    if (distance(player, candy) <= radius) {
       collected.push(candy);
     } else {
       remaining.push(candy);

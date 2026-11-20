@@ -7,12 +7,14 @@ import {
   GHOST_RADIUS,
   PATROL_SPEED,
 } from './config';
-import { isWalkableTile, moveWithCollision, tileCenter } from './grid';
+import { canOccupy, findPath, isWalkableTile, moveWithCollision, tileAt, tileCenter } from './grid';
 import { drawInt } from './rng';
 import { distance, length, scale, sub } from './vec';
 import type { Ghost, Grid, Vec2 } from './types';
 
 const PATROL_ARRIVE_EPSILON = 0.5;
+/** Spacing of the points checked along a line of sight. */
+const LINE_SAMPLE_PX = 4;
 
 export function touchesPlayer(ghost: Ghost, player: Vec2): boolean {
   return distance(ghost.pos, player) <= GHOST_CONTACT_RADIUS;
@@ -47,12 +49,43 @@ function stepPatrol(ghost: Ghost, grid: Grid, dt: number): Ghost {
   };
 }
 
+/** True when the chase ghost would move toward the player this frame. Used by the UI to mark it. */
+export function isChasing(ghost: Ghost, player: Vec2): boolean {
+  return ghost.kind === 'chase' && distance(ghost.pos, player) <= CHASE_TRIGGER_RADIUS;
+}
+
+/** True when a circle of `radius` can slide along the straight segment from `a` to `b` without touching a wall. */
+export function hasClearLine(grid: Grid, a: Vec2, b: Vec2, radius: number): boolean {
+  const gap = distance(a, b);
+  const samples = Math.max(1, Math.ceil(gap / LINE_SAMPLE_PX));
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    if (!canOccupy(grid, point, radius)) return false;
+  }
+  return true;
+}
+
+/**
+ * Chases the player inside the trigger radius. Moves straight when the line is clear.
+ * Otherwise it heads for the next tile on the shortest walkable route, so it goes around walls.
+ */
 function stepChase(ghost: Ghost, player: Vec2, grid: Grid, dt: number): Ghost {
-  const toPlayer = sub(player, ghost.pos);
-  const gap = length(toPlayer);
+  const gap = distance(ghost.pos, player);
   if (gap === 0 || gap > CHASE_TRIGGER_RADIUS) return ghost;
-  const travel = Math.min(CHASE_SPEED * dt, gap);
-  const pos = moveWithCollision(grid, ghost.pos, scale(toPlayer, travel / gap), GHOST_RADIUS);
+
+  let target = player;
+  if (!hasClearLine(grid, ghost.pos, player, GHOST_RADIUS)) {
+    const route = findPath(grid, tileAt(ghost.pos), tileAt(player));
+    if (route === null) return ghost;
+    target = route.length > 1 ? tileCenter(route[1]) : player;
+  }
+
+  const toTarget = sub(target, ghost.pos);
+  const reach = length(toTarget);
+  if (reach === 0) return ghost;
+  const travel = Math.min(CHASE_SPEED * dt, reach);
+  const pos = moveWithCollision(grid, ghost.pos, scale(toTarget, travel / reach), GHOST_RADIUS);
   return { ...ghost, pos };
 }
 
