@@ -5,5 +5,7 @@ coverage/
 *.log
 .env
 .env.*
+# Rendered demo videos (tens of MB each). Upload them to YouTube instead.
+video/out/
 
 # Note: .kiro/ must stay committed. Kiroween rules disqualify submissions that gitignore it.

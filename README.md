@@ -32,6 +32,7 @@ Dev aids, for testing and screenshots only:
 - `?scene=RunScene` opens a run directly. `&seed=N&room=R` starts in room R of seed N.
 - `?choose=1` opens the upgrade cards at once. `?pause=1` starts paused.
 - `&freeze=1` stops the room from advancing. `&bossPhase=windup` (room 4) shows the Pumpkin King about to dash.
+- `?autopilot=1` lets a simple bot play (used to record the demo video). Add `&seed=N` for a fixed run.
 - `&nobanner=1` skips the opening wipe, the room banner, and the boss intro. `&flame=N` sets the starting flame. `&atDoor=1` starts at the door with the goal met. `&fps=1` shows the frame rate.
 - `?touch=1` shows the touch controls on a desktop.
 

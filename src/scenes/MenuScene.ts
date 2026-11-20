@@ -107,6 +107,12 @@ export class MenuScene extends Phaser.Scene {
     if (!introPlayed && !isReducedMotion()) this.playIntro();
     else this.setPromptPulse(!isReducedMotion());
     introPlayed = true;
+
+    // Dev aid for the demo video: `?autopilot=1&menuMs=N` starts the run by itself after N ms.
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('autopilot')) {
+      this.time.delayedCall(Number(params.get('menuMs')) || 6000, () => this.startRun());
+    }
   }
 
   update(time: number): void {

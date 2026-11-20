@@ -134,6 +134,16 @@ repo. Items marked "superseded" were built for the three-night version and are r
   - Covers: R15.8.
 - [x] 41. Cover image and README screenshots
 
+## Phase F: Submission materials (dev tools only, no game features)
+
+- [x] 42. Demo video tooling
+  - `src/dev/autopilot.ts`: a bot that plays with the normal rules, enabled by `?autopilot=1`, with a fixed time step.
+  - `video/record.mjs` records the game in real time through the Chrome DevTools Protocol.
+  - `video/cards.mjs` renders title, info, and Kiro cards that quote the real repo files, plus subtitles.
+  - `video/build.mjs` cuts the video, adds macOS text-to-speech narration, and re-synthesizes the game's
+    own sound recipes from `src/audio/sfx.ts` at the recorded event times. Requires ffmpeg.
+  - Output goes to `video/out/`, which is not committed.
+
 ## Schedule
 
 - Phase A (tasks 6 to 10): by 2026-11-17.

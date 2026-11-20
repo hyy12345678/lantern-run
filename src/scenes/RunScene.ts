@@ -22,6 +22,7 @@ import type { BossPhase, GhostKind, ThemeId, Vec2 } from '../core/types';
 import { UPGRADE_IDS } from '../core/upgrades';
 import type { UpgradeId } from '../core/upgrades';
 import { playSound } from '../audio/sfx';
+import { autopilotInput, autopilotPick } from '../dev/autopilot';
 import { recordRunScore } from '../storage/bestScore';
 import { Banner } from '../ui/Banner';
 import {
@@ -78,6 +79,8 @@ const EMBER_EVERY_MS = 55;
 const EMBER_IDLE_EVERY_MS = 200;
 const WISP_EVERY_MS = 90;
 const SMOKE_EVERY_MS = 80;
+/** Dev aid: how long the autopilot looks at the upgrade cards before picking. */
+const AUTOPILOT_PICK_MS = 2200;
 
 // Layer order. The darkness covers the world; glows, warnings, and labels sit above it.
 const DEPTH = {
@@ -200,6 +203,8 @@ export class RunScene extends Phaser.Scene {
   private touch: TouchControls | null = null;
   private touchFrame: TouchFrame | undefined;
   private rayCount = RAYS_DESKTOP;
+  /** Dev aid (`?autopilot=1`): a bot plays, with a fixed time step so it matches the simulation. */
+  private autopilot = false;
   private moveKeys!: MoveKeys;
   private blowKey!: Key;
   private confirmKey!: Key;
@@ -238,6 +243,7 @@ export class RunScene extends Phaser.Scene {
     this.holdShown = false;
     this.frozen = params.has('freeze');
     this.skipIntros = params.has('nobanner');
+    this.autopilot = params.has('autopilot');
     this.messageUntil = 0;
     this.ending = null;
     this.paused = false;
@@ -352,7 +358,7 @@ export class RunScene extends Phaser.Scene {
     if (this.paused) {
       if (Phaser.Input.Keyboard.JustDown(this.quitKey)) this.scene.start('MenuScene');
     } else if (this.state.status === 'playing' && !this.frozen && !this.cinematic) {
-      const dt = Math.min(deltaMs / 1000, MAX_FRAME_SECONDS);
+      const dt = this.autopilot ? 1 / 60 : Math.min(deltaMs / 1000, MAX_FRAME_SECONDS);
       const before = this.state;
       const step = stepRun(this.state, this.readInput(), dt);
       this.state = step.state;
@@ -411,6 +417,7 @@ export class RunScene extends Phaser.Scene {
 
   /** Called once the screen is open on a room: shows its banner, or the boss intro. */
   private enterRoom(): void {
+    this.videoEvent(`roomStart${this.state.roomIndex}`);
     if (this.state.layout.boss && !this.skipIntros) {
       this.startBossIntro();
       return;
@@ -424,6 +431,7 @@ export class RunScene extends Phaser.Scene {
     this.cinematic = true;
     this.introEndsAt = this.time.now + BOSS_INTRO_MS;
     playSound('bossIntro');
+    this.videoEvent('bossIntro');
     const reduced = isReducedMotion();
     const top = this.add.rectangle(WIDTH / 2, LETTERBOX_PX / 2, WIDTH, LETTERBOX_PX, 0x000000, 1).setDepth(DEPTH.letterbox);
     const bottom = this.add
@@ -520,7 +528,13 @@ export class RunScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ input and events
 
+  /** Dev aid for the demo video: logs a moment so the recording script can line up narration. */
+  private videoEvent(name: string): void {
+    if (this.autopilot) console.log(`VIDEO_EVENT ${name}`);
+  }
+
   private readInput(): RunInput {
+    if (this.autopilot) return autopilotInput(this.state);
     const axis = (negative: Key[], positive: Key[]): number =>
       (positive.some((k) => k.isDown) ? 1 : 0) - (negative.some((k) => k.isDown) ? 1 : 0);
     const keyboardMove = {
@@ -539,6 +553,7 @@ export class RunScene extends Phaser.Scene {
     this.state = chooseUpgrade(this.state, id);
     this.hideMessage();
     playSound('pick');
+    this.videoEvent('pick');
   }
 
   private shake(ms: number, intensity: number): void {
@@ -582,6 +597,10 @@ export class RunScene extends Phaser.Scene {
         break;
       case 'upgradeOffered':
         this.upgradeOverlay.show(event.choices, (id) => this.pickUpgrade(id));
+        if (this.autopilot) {
+          const index = event.choices.indexOf(autopilotPick(event.choices));
+          this.time.delayedCall(AUTOPILOT_PICK_MS, () => this.upgradeOverlay.pick(index));
+        }
         break;
       case 'runLost':
       case 'runWon':
@@ -590,6 +609,7 @@ export class RunScene extends Phaser.Scene {
       default:
         break;
     }
+    this.videoEvent(event.type === 'roomCleared' ? `roomCleared${event.room}` : event.type);
   }
 
   private hurt(time: number, damage: number, strength: number): void {
@@ -630,11 +650,15 @@ export class RunScene extends Phaser.Scene {
       burst(this, layout.door.x, layout.door.y, PAL.candle, 22);
       floatText(this, layout.door.x, layout.door.y - 20, 'DOOR OPEN', PAL.candyText, 22);
       playSound('doorOpen');
+      this.videoEvent('doorOpen');
     }
     this.doorWasOpen = doorOpen;
 
     const boss = layout.boss;
-    if (boss && boss.phase !== this.lastBossPhase && boss.phase === 'windup') playSound('bossWindup');
+    if (boss && boss.phase !== this.lastBossPhase && boss.phase === 'windup') {
+      playSound('bossWindup');
+      this.videoEvent('bossWindup');
+    }
     this.lastBossPhase = boss?.phase ?? null;
 
     for (const ghost of layout.ghosts) {

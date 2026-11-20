@@ -1,0 +1,29 @@
+{
+  "voice": "Samantha",
+  "rate": 172,
+  "lines": {
+    "title": "This is Lantern Run, a Halloween roguelike built with Kiro for Kiroween.",
+    "menu": "You are a jack-o'-lantern, carrying a flame through four haunted rooms. The flame is your only life.",
+    "dark": "Every room is dark. Your lantern lights the way, and the walls cast real shadows.",
+    "candy": "The flame burns down over time. Candy restores it, and once you have enough, the door opens.",
+    "ghosts": "Ghosts drain your flame. Press space to blow them back.",
+    "upgrade": "After each room, you pick one of three upgrades. Some are trade-offs, like Hungry Flame: more flame from candy, but it burns faster.",
+    "patch": "Each room has its own lights. Carved pumpkins glow in the pumpkin patch.",
+    "smart": "Chase ghosts find a path around walls, and blink ghosts fade out just before they teleport.",
+    "graveyard": "In the graveyard, spirit candles burn on the headstones.",
+    "boss": "The last room belongs to the Pumpkin King. He winds up, then dashes along a red warning line. Step aside.",
+    "win": "Reach the door with enough candy, and the King retreats.",
+    "result": "Your score and upgrades wait at the end, and your best score is saved.",
+    "lose": "But if your flame goes out, the light shrinks to nothing, and the run is over.",
+    "touch": "It also plays on phones, with a joystick and a blow button.",
+    "kiroSpec": "Kiro shaped the whole build. The spec holds fifteen requirement groups and forty-one tasks. When the game turned into a roguelike, we rewrote the spec first, then the code.",
+    "kiroSteering": "Steering files hold the rules. Core logic never imports Phaser, randomness is always seeded, and the style guide sets the palette and the motion limits.",
+    "kiroHooks": "Hooks run the type check on every save, and the tests after every task.",
+    "kiroPbt": "Property-based tests check the rules, from the flame's limits to light that never passes through a wall. All seventy-nine tests pass.",
+    "upgrades": "There are eight upgrades in all, so every run builds a little differently.",
+    "access": "Reduced motion follows your browser setting, and hits pulse the screen edges instead of flashing the whole screen.",
+    "worked": "Specs kept the work organized, steering kept it consistent, and hooks caught problems early. Tests can't tell you if a game is fun, though. That still took playtesting.",
+    "outro": "Lantern Run is free to play in your browser. Thanks for watching, and happy Kiroween!",
+    "madeInCode": "Every picture and every sound is made in code. There are no image or audio files, only two open fonts."
+  }
+}
