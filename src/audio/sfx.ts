@@ -1,7 +1,17 @@
 // Sound effects synthesized with the Web Audio API. No audio files, so there are no licensing
 // issues. The mute setting lasts for the browser session.
 
-export type SoundName = 'candy' | 'blow' | 'hit' | 'bossHit' | 'pick' | 'roomClear' | 'runEnd';
+export type SoundName =
+  | 'candy'
+  | 'blow'
+  | 'hit'
+  | 'bossHit'
+  | 'pick'
+  | 'roomClear'
+  | 'runEnd'
+  | 'doorOpen'
+  | 'ember'
+  | 'bossWindup';
 
 interface NoteSpec {
   freq: number;
@@ -37,6 +47,19 @@ const RECIPES: Record<SoundName, NoteSpec[]> = {
     { freq: 330, start: 0.22, dur: 0.25, type: 'sine', gain: 0.18 },
     { freq: 262, start: 0.44, dur: 0.5, type: 'sine', gain: 0.18 },
   ],
+  // A creak that rises, then a soft chime.
+  doorOpen: [
+    { freq: 140, slideTo: 260, start: 0, dur: 0.3, type: 'sawtooth', gain: 0.05 },
+    { freq: 880, start: 0.28, dur: 0.35, type: 'sine', gain: 0.12 },
+    { freq: 1320, start: 0.36, dur: 0.35, type: 'sine', gain: 0.08 },
+  ],
+  // A falling note caught and lifted back up.
+  ember: [
+    { freq: 520, slideTo: 200, start: 0, dur: 0.2, type: 'triangle', gain: 0.15 },
+    { freq: 300, slideTo: 760, start: 0.2, dur: 0.35, type: 'triangle', gain: 0.16 },
+  ],
+  // Low rising growl that warns of the dash. Quiet on purpose: no loud jump scares.
+  bossWindup: [{ freq: 70, slideTo: 150, start: 0, dur: 0.75, type: 'sawtooth', gain: 0.07 }],
 };
 
 let muted = false;

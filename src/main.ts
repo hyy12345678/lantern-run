@@ -29,10 +29,11 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: order,
 };
 
-// Wait for the bundled Fredoka font so the first text render uses it.
+// Wait for the bundled fonts so the first text render uses them.
 const fontLoads = Promise.all([
   document.fonts.load('bold 24px Fredoka'),
   document.fonts.load('16px Fredoka'),
+  document.fonts.load('48px Creepster'),
 ]).catch(() => undefined);
 
 fontLoads.finally(() => {
