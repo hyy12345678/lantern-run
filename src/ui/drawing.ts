@@ -31,6 +31,11 @@ export function tileHash(col: number, row: number, salt = 0): number {
 
 // ---------------------------------------------------------------- floors and borders
 
+/** Crypt floors get a candle where tileHash(col, row, 3) is above this. About 1 tile in 30. */
+export const CRYPT_CANDLE_THRESHOLD = 0.967;
+/** Candle position inside its tile, as a fraction of the tile size. */
+export const CRYPT_CANDLE_OFFSET = { x: 0.65, y: 0.65 } as const;
+
 /** Floor tile without a grid outline. Neighbouring tiles blend into one continuous ground. */
 export function drawFloorTile(g: Canvas, x: number, y: number, size: number, col: number, row: number, p: ThemePalette): void {
   g.fillStyle(p.floorA, 1);
@@ -102,10 +107,10 @@ export function drawFloorTile(g: Canvas, x: number, y: number, size: number, col
         g.lineBetween(cx + 6, cy + 7, cx + 3, cy + 14);
         g.lineBetween(cx + 6, cy + 7, cx + 13, cy + 10);
       }
-      if (h3 > 0.94) {
+      if (h3 > CRYPT_CANDLE_THRESHOLD) {
         // A candle stub. Its warm light makes the crypt feel lived in.
-        const cx = x + size * 0.65;
-        const cy = y + size * 0.65;
+        const cx = x + size * CRYPT_CANDLE_OFFSET.x;
+        const cy = y + size * CRYPT_CANDLE_OFFSET.y;
         g.fillStyle(PAL.candle, 0.18);
         g.fillCircle(cx, cy - 6, 9);
         g.fillStyle(0xf3e6c8, 1);
@@ -272,6 +277,35 @@ export function drawHayBale(g: Canvas, x: number, y: number, size: number, h: nu
   }
   g.fillStyle(PAL.wood, 1);
   g.fillRect(x + size / 2 - 2, y + size * 0.22, 4, size * 0.66);
+}
+
+/** A small candle with a pale spirit flame, standing on top of a headstone. */
+export function drawSpiritCandle(g: Canvas, cx: number, top: number): void {
+  g.fillStyle(0xbdf7e4, 0.25);
+  g.fillCircle(cx, top - 8, 9);
+  g.fillStyle(0xf3e6c8, 1);
+  g.fillRect(cx - 2.5, top - 6, 5, 7);
+  g.lineStyle(1.5, PAL.ink, 1);
+  g.strokeRect(cx - 2.5, top - 6, 5, 7);
+  g.fillStyle(0xbdf7e4, 1);
+  g.fillEllipse(cx, top - 10, 4, 7);
+  g.fillStyle(0xffffff, 1);
+  g.fillEllipse(cx, top - 9, 1.6, 3);
+}
+
+/** A carved, lit face on the big pumpkin of a pile, so some piles glow like jack-o'-lanterns. */
+export function drawCarvedFace(g: Canvas, cx: number, cy: number, r: number): void {
+  g.fillStyle(PAL.candle, 1);
+  g.fillTriangle(cx - r * 0.55, cy - r * 0.05, cx - r * 0.15, cy - r * 0.05, cx - r * 0.35, cy - r * 0.45);
+  g.fillTriangle(cx + r * 0.15, cy - r * 0.05, cx + r * 0.55, cy - r * 0.05, cx + r * 0.35, cy - r * 0.45);
+  g.beginPath();
+  g.moveTo(cx - r * 0.55, cy + r * 0.2);
+  g.lineTo(cx + r * 0.55, cy + r * 0.2);
+  g.lineTo(cx + r * 0.3, cy + r * 0.5);
+  g.lineTo(cx, cy + r * 0.35);
+  g.lineTo(cx - r * 0.3, cy + r * 0.5);
+  g.closePath();
+  g.fillPath();
 }
 
 /** Pumpkin-patch wall: a pile of two unlit pumpkins. */
