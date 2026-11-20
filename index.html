@@ -28,9 +28,28 @@
         width: 100%;
         height: 100%;
       }
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffb347;
+        font: 600 20px 'Trebuchet MS', Arial, sans-serif;
+        letter-spacing: 0.05em;
+        animation: glow 1.4s ease-in-out infinite alternate;
+      }
+      @keyframes glow {
+        from { opacity: 0.45; }
+        to { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #loading { animation: none; }
+      }
     </style>
   </head>
   <body>
+    <div id="loading">Lighting the lantern…</div>
     <div id="game"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

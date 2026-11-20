@@ -37,5 +37,7 @@ const fontLoads = Promise.all([
 ]).catch(() => undefined);
 
 fontLoads.finally(() => {
-  new Phaser.Game(config);
+  const game = new Phaser.Game(config);
+  // The page shows "Lighting the lantern…" while the script and fonts download. Remove it once the game runs.
+  game.events.once(Phaser.Core.Events.READY, () => document.getElementById('loading')?.remove());
 });
