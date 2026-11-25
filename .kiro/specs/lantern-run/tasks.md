@@ -144,6 +144,13 @@ repo. Items marked "superseded" were built for the three-night version and are r
     own sound recipes from `src/audio/sfx.ts` at the recorded event times. Requires ffmpeg.
   - Output goes to `video/out/`, which is not committed.
 
+## Phase G: Fixes from playtesting
+
+- [x] 43. Smooth lantern shadows
+  - Replace even ray sampling with a visibility polygon (`castVisibilityRays`), light the first wall tile as a
+    whole, and blur the darkness for soft edges. Tests in `tests/visibility.test.ts`, including an exactness property.
+  - Covers: R15.1, R15.10.
+
 ## Schedule
 
 - Phase A (tasks 6 to 10): by 2026-11-17.

@@ -330,22 +330,36 @@ Scenes are verified by playing the build and with headless screenshots. Automate
 
 ### Light occlusion (core)
 
-`castLightRays(grid, origin, radius, rayCount)` casts rays evenly around the origin with a grid traversal (DDA),
-so no wall tile is skipped. A ray stops at the far side of the first wall tile it enters, so that wall stays lit
-and everything behind it is in shadow. Each ray returns `{ end, blocked }`.
+`castVisibilityRays(grid, origin, radius, arcCount)` returns a visibility polygon: rays sorted by angle whose
+ends, joined by straight lines, outline the lit area exactly. Rays are cast:
+
+- in a pair just to each side of every wall-tile corner inside the radius,
+- at each point where a wall-tile edge crosses the circle,
+- at `arcCount` even angles, so the circle stays round.
+
+Each ray uses a grid traversal (DDA), so no wall tile is skipped. A ray stops at the face of the first wall tile
+it enters and returns `{ end, blocked, wall }`. The renderer lights that whole tile, so the first wall stays lit
+(R15.1) and everything behind it is in shadow.
+
+An earlier version cast 288 evenly spaced rays and stopped them at the far side of the wall. Shadow edges then
+fell between samples, which drew a sawtooth along every edge and dark triangles across lit walls.
 
 ### Lighting renderer (UI)
 
 Each frame, in `src/ui/Lantern.ts`:
 
-1. Light mask (off-screen RenderTexture): stamp a soft white brush at the player, then erase shadow wedges built
-   from consecutive rays where at least one ray is blocked. Stamp the other light sources (not occluded).
+1. Light mask (off-screen RenderTexture): stamp a soft white brush at the player, then erase the shadows.
+   Shadows are wedges behind the line between consecutive rays where at least one ray is blocked, with the lit
+   wall tiles cut back out. Stamp the other light sources (not occluded).
 2. Darkness (cool `0x070b22`, alpha 0.8): fill, then erase the light mask.
 3. Warm tint: an additive orange brush at the player, below the darkness, so shadows hide it.
 4. Halos: pooled additive images in each source's color, above the darkness. This gives a bloom look without a
    full-screen post-process, so it also works on the Canvas renderer and costs little on phones.
 
-Ray count: 288 on desktop, 180 on touch devices.
+Soft edges: a Gaussian blur post-effect on the darkness and the warm tint gives shadows a soft edge (WebGL only;
+Canvas keeps hard edges). Lighter blur on touch devices.
+
+Even rays: 120 on desktop, 90 on touch devices. Corner rays are added on top.
 
 ### Moments
 

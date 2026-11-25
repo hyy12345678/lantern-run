@@ -67,9 +67,12 @@ const BLINK_WARN_SEC = 0.6;
 const LOW_FLAME_PULSE_MS = 1100;
 const FIREFLY_COUNT = 12;
 const BOB_PX = 3;
-/** Light rays per frame (R15.10). Fewer on touch devices to save power. */
-const RAYS_DESKTOP = 288;
-const RAYS_TOUCH = 180;
+/**
+ * Evenly spaced light rays per frame that keep the light circle round (R15.10). Rays aimed at wall corners
+ * are added on top, so shadow edges are exact at any count. Fewer on touch devices to save power.
+ */
+const RAYS_DESKTOP = 120;
+const RAYS_TOUCH = 90;
 /** Length of the flame-out and win moments before the screen fades (R15.3). */
 const ENDING_MS = 1500;
 const ENDING_FADE_MS = 450;
@@ -281,7 +284,7 @@ export class RunScene extends Phaser.Scene {
     this.mapRoomIndex = this.state.roomIndex;
     this.fogLayer = this.add.graphics().setDepth(DEPTH.fog);
     this.entities = this.add.graphics().setDepth(DEPTH.entities);
-    this.lantern = new Lantern(this, WIDTH, HEIGHT, DEPTH.darkness, DEPTH.halos);
+    this.lantern = new Lantern(this, WIDTH, HEIGHT, DEPTH.darkness, DEPTH.halos, isTouchDevice());
     buildVignette(this, WIDTH, HEIGHT).setDepth(DEPTH.vignette);
     this.fireflies = this.add.graphics().setDepth(DEPTH.fireflies);
     this.warnings = this.add.graphics().setDepth(DEPTH.warnings);

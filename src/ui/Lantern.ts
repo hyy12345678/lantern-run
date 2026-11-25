@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { FLAME_MAX } from '../core/config';
+import { FLAME_MAX, TILE_SIZE } from '../core/config';
 import type { Grid, Vec2 } from '../core/types';
-import { castLightRays } from '../core/visibility';
+import { castVisibilityRays } from '../core/visibility';
 
 export const BRUSH_KEY = 'lantern-light-brush';
 export const BRUSH_RADIUS = 128;
@@ -16,6 +16,12 @@ const LIGHT_MAX = 230;
 /** Shadow wedges reach this far past a wall, more than the screen diagonal. */
 const SHADOW_FAR = 1400;
 const HALO_POOL = 64;
+/**
+ * Gaussian blur on the darkness and the warm tint, so shadow edges get a soft penumbra instead of hard,
+ * stair-stepped pixels. WebGL only; the Canvas renderer keeps hard edges.
+ */
+const SOFT_EDGE = { quality: 1, strength: 1.4, steps: 3 } as const;
+const SOFT_EDGE_TOUCH = { quality: 0, strength: 1.2, steps: 2 } as const;
 
 /** One light source other than the lantern. Glows are not blocked by walls, so dangers stay readable. */
 export interface LightSource {
@@ -36,6 +42,7 @@ export interface LanternFrame {
   sources: readonly LightSource[];
   /** Defaults to DARKNESS_ALPHA. Lowered when the win floods the room with light. */
   darkness?: number;
+  /** Evenly spaced rays that keep the circle round. Corner rays are added on top (see castVisibilityRays). */
   rayCount: number;
 }
 
@@ -71,11 +78,16 @@ export class Lantern {
   private readonly darkness: Phaser.GameObjects.RenderTexture;
   private readonly warm: Phaser.GameObjects.RenderTexture;
   private readonly brush: Phaser.GameObjects.Image;
-  private readonly shadows: Phaser.GameObjects.Graphics;
+  /** Shadow wedges behind the outline of the lit area. */
+  private readonly wedges: Phaser.GameObjects.Graphics;
+  /** Wall tiles the light reaches. They stay lit as a whole, so walls do not look cut in half. */
+  private readonly litWalls: Phaser.GameObjects.Graphics;
+  /** Wedges minus lit walls: what gets erased from the light. */
+  private readonly shadows: Phaser.GameObjects.RenderTexture;
   private readonly halos: Phaser.GameObjects.Image[] = [];
 
   /** `depth` is the darkness. The warm tint sits just below it and the halos `haloDepth` above. */
-  constructor(scene: Phaser.Scene, width: number, height: number, depth: number, haloDepth: number) {
+  constructor(scene: Phaser.Scene, width: number, height: number, depth: number, haloDepth: number, touch = false) {
     ensureBrush(scene);
     this.mask = scene.make.renderTexture({ x: 0, y: 0, width, height }, false).setOrigin(0, 0);
     this.warm = scene.add
@@ -85,7 +97,13 @@ export class Lantern {
       .setBlendMode(Phaser.BlendModes.ADD);
     this.darkness = scene.add.renderTexture(0, 0, width, height).setOrigin(0, 0).setDepth(depth);
     this.brush = scene.make.image({ x: 0, y: 0, key: BRUSH_KEY }, false);
-    this.shadows = scene.make.graphics({}, false);
+    this.wedges = scene.make.graphics({}, false);
+    this.litWalls = scene.make.graphics({}, false);
+    this.shadows = scene.make.renderTexture({ x: 0, y: 0, width, height }, false).setOrigin(0, 0);
+    const soft = touch ? SOFT_EDGE_TOUCH : SOFT_EDGE;
+    for (const layer of [this.darkness, this.warm]) {
+      layer.postFX?.addBlur(soft.quality, 1, 1, soft.strength, 0xffffff, soft.steps);
+    }
     for (let i = 0; i < HALO_POOL; i++) {
       this.halos.push(
         scene.add.image(0, 0, BRUSH_KEY).setDepth(haloDepth).setBlendMode(Phaser.BlendModes.ADD).setVisible(false),
@@ -134,27 +152,43 @@ export class Lantern {
     for (let i = used; i < this.halos.length; i++) this.halos[i].setVisible(false);
   }
 
-  /** Shadow wedges: for each pair of neighbouring rays where a wall cut the light, the area behind it. */
+  /**
+   * Shadows from the visibility polygon: for each pair of neighbouring rays where a wall cut the light,
+   * the area behind the line between their ends. The wall tiles that stopped a ray are then cut back out.
+   */
   private buildShadows(frame: LanternFrame): void {
-    const g = this.shadows;
-    g.clear();
+    const { wedges, litWalls, shadows } = this;
+    wedges.clear();
+    litWalls.clear();
+    shadows.clear();
     if (frame.radius <= 0) return;
     const { player } = frame;
     // Slightly longer than the light, so rays that reach the edge are not mistaken for blocked ones.
-    const rays = castLightRays(frame.grid, player, frame.radius * 1.02, frame.rayCount);
+    const rays = castVisibilityRays(frame.grid, player, frame.radius * 1.02, frame.rayCount);
     const far = (end: Vec2): Vec2 => {
       const dx = end.x - player.x;
       const dy = end.y - player.y;
       const len = Math.hypot(dx, dy) || 1;
       return { x: player.x + (dx / len) * SHADOW_FAR, y: player.y + (dy / len) * SHADOW_FAR };
     };
-    g.fillStyle(0xffffff, 1);
+    wedges.fillStyle(0xffffff, 1);
+    litWalls.fillStyle(0xffffff, 1);
+    const seen = new Set<string>();
     for (let i = 0; i < rays.length; i++) {
       const a = rays[i];
       const b = rays[(i + 1) % rays.length];
+      if (a.wall) {
+        const key = `${a.wall.col},${a.wall.row}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          litWalls.fillRect(a.wall.col * TILE_SIZE, a.wall.row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      }
       if (!a.blocked && !b.blocked) continue;
-      g.fillPoints([a.end, b.end, far(b.end), far(a.end)], true);
+      wedges.fillPoints([a.end, b.end, far(b.end), far(a.end)], true);
     }
+    shadows.draw(wedges);
+    shadows.erase(litWalls);
   }
 
   private stamp(target: Phaser.GameObjects.RenderTexture, pos: Vec2, radius: number, alpha: number, tint: number): void {
