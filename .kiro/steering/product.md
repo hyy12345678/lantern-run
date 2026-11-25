@@ -2,9 +2,10 @@
 
 ## Vision
 A short, atmospheric browser game for Kiroween 2026 (Costume Contest category).
-The player is a jack-o'-lantern carrying a flame through a fog-covered village
-at night. The flame is the only resource that matters: keep it lit, collect
-candy, and reach the church door.
+The player is a jack-o'-lantern carrying a flame through four dark rooms
+(Graveyard, Chapel, Pumpkin Patch, then the Pumpkin King's Crypt). The flame is
+the only resource that matters: keep it lit, collect each room's candy goal, and
+reach the door.
 
 ## Scope rules (non-negotiable for the hackathon)
 - MVP is defined in `.kiro/specs/lantern-run/requirements.md`. Do not add features
@@ -20,7 +21,7 @@ candy, and reach the church door.
   is used), design, innovation, and presentation.
 - The Costume Contest category rewards a polished, haunting UI. Every screen
   should look intentional, not like a prototype.
-- The game must be playable in under 3 minutes so the demo video can show a full night.
+- The game must be playable in under 3 minutes so the demo video can show a full run.
 
 ## Tone and content
 - Spooky, not gory. Fog, candles, pumpkins, ghosts, bats. No blood, no jump scares

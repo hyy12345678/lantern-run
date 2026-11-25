@@ -28,12 +28,13 @@ Text contrast on the background must be at least 4.5:1 (WCAG AA).
 
 ## HUD layout
 - Top left: flame bar (with a number label).
-- Top right: candy counter and current night (e.g. "Night 2 / 3").
+- Top middle: score, current room (e.g. "Room 2 / 4"), and theme name.
+- Top right: candy goal (e.g. "3 / 8") and the blow cooldown.
 - Bottom: on-screen controls on touch devices only.
 
 ## Audio rules
 - CC0 or otherwise free-to-use sources only. No copyrighted music in the demo video.
-- Sound effects: candy pickup, blow, ghost contact, flame out, night clear.
+- Sound effects: candy pickup, blow, ghost contact, flame out, room clear.
 - A mute toggle is always visible on the menu and the game screen.
 
 ## Spooky without gore
